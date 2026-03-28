@@ -1225,6 +1225,8 @@ def sdk_download():
 def sdk_page():
     """Page HTML du SDK avec instructions"""
     sdk_code = open("/data/data/com.termux/files/home/NexusLIFE/nexusarena_sdk.py").read()
+    next_level = {"Novice":"Explorer","Explorer":"Builder","Builder":"Expert","Expert":"Master","Master":"Légende"}.get(level,"?")
+    bar_pct = min(100, int(points % 500 / 5))
     html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -7404,6 +7406,242 @@ body{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;mar
 </div></body></html>"""
     return HTMLResponse(html)
 
+@app.get("/tools/code")
+def code_executor_page():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Code Executor — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}
+.wrap{max-width:900px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}
+.logo{font-family:Orbitron,sans-serif;color:#ff6b35;font-size:0.85em;letter-spacing:3px}
+.back{color:#4a6a7a;font-size:0.75em;text-decoration:none}
+.editor{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:400px}
+.panel{background:#080d16;border:1px solid #1a2535;border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.panel-header{padding:10px 14px;border-bottom:1px solid #1a2535;font-family:Orbitron,sans-serif;font-size:0.65em;color:#4a6a7a;letter-spacing:2px;display:flex;justify-content:space-between;align-items:center}
+textarea{flex:1;background:#040812;border:none;color:#00ff88;padding:14px;font-family:'JetBrains Mono',monospace;font-size:0.82em;line-height:1.6;resize:none;outline:none}
+.output{flex:1;padding:14px;font-size:0.8em;line-height:1.6;overflow-y:auto;white-space:pre-wrap}
+.controls{display:flex;gap:8px;margin:12px 0}
+.btn{padding:10px 20px;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;border:none;letter-spacing:2px;font-weight:700}
+.run-btn{background:#ff6b35;color:#fff}
+.ai-btn{background:#9955ff;color:#fff}
+.clear-btn{background:transparent;border:1px solid #4a6a7a;color:#4a6a7a}
+.lang-select{background:#040812;border:1px solid #1a2535;color:#fff;padding:8px;font-family:'JetBrains Mono',monospace;font-size:0.78em;border-radius:4px}
+.error{color:#ff4444}
+.success{color:#00ff88}
+@media(max-width:600px){.editor{grid-template-columns:1fr;height:auto}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">🔧 CODE EXECUTOR</div><a class="back" href="/tools">← Tools</a></div>
+
+<div class="controls">
+  <select class="lang-select" id="lang">
+    <option value="python">Python</option>
+    <option value="javascript">JavaScript (Node)</option>
+    <option value="bash">Bash</option>
+  </select>
+  <button class="btn run-btn" onclick="runCode()">▶ EXÉCUTER</button>
+  <button class="btn ai-btn" onclick="aiHelp()">🤖 AI FIX</button>
+  <button class="btn ai-btn" onclick="aiExplain()">💡 EXPLIQUER</button>
+  <button class="btn clear-btn" onclick="clearAll()">✕ CLEAR</button>
+</div>
+
+<div class="editor">
+  <div class="panel">
+    <div class="panel-header">
+      <span>CODE</span>
+      <span id="lines">0 lignes</span>
+    </div>
+    <textarea id="code" placeholder="# Écrivez votre code Python ici...
+print('Hello NexusArena!')
+
+# Exemple :
+def fibonacci(n):
+    if n <= 1: return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+print(fibonacci(10))" oninput="updateLines()"></textarea>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>SORTIE</span>
+      <span id="exec-time"></span>
+    </div>
+    <div class="output" id="output"><span style="color:#4a6a7a">Prêt à exécuter...</span></div>
+  </div>
+</div>
+
+<div id="ai-output" style="display:none;margin-top:16px;background:#080d16;border:1px solid #9955ff;border-radius:8px;padding:16px;font-size:0.8em;line-height:1.7;white-space:pre-wrap"></div>
+</div>
+
+<script>
+function updateLines() {
+  const lines = document.getElementById('code').value.split('\n').length;
+  document.getElementById('lines').textContent = lines + ' lignes';
+}
+
+async function runCode() {
+  const code = document.getElementById('code').value.trim();
+  const lang = document.getElementById('lang').value;
+  if (!code) return;
+  
+  const output = document.getElementById('output');
+  output.innerHTML = '<span style="color:#ff6b35">⏳ Exécution...</span>';
+  
+  const t0 = Date.now();
+  const r = await fetch('/tools/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({code, lang})
+  }).then(r=>r.json());
+  
+  const ms = Date.now()-t0;
+  document.getElementById('exec-time').textContent = ms+'ms';
+  
+  if (r.error) {
+    output.innerHTML = '<span class="error">❌ ERREUR:\n' + r.error + '</span>';
+  } else {
+    output.innerHTML = '<span class="success">✅ Succès:\n</span>' + (r.output || '(aucune sortie)');
+  }
+}
+
+async function aiHelp() {
+  const code = document.getElementById('code').value.trim();
+  if (!code) return;
+  
+  document.getElementById('ai-output').style.display = 'block';
+  document.getElementById('ai-output').textContent = '🤖 Analyse en cours...';
+  
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: 'Analyse ce code Python, trouve les bugs et propose une version corrigée:\n\n' + code,
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  
+  document.getElementById('ai-output').textContent = r.response || r.error;
+}
+
+async function aiExplain() {
+  const code = document.getElementById('code').value.trim();
+  if (!code) return;
+  
+  document.getElementById('ai-output').style.display = 'block';
+  document.getElementById('ai-output').textContent = '💡 Analyse en cours...';
+  
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: 'Explique ce code de façon simple et claire, ligne par ligne si nécessaire:\n\n' + code,
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  
+  document.getElementById('ai-output').textContent = r.response || r.error;
+}
+
+function clearAll() {
+  document.getElementById('code').value = '';
+  document.getElementById('output').innerHTML = '<span style="color:#4a6a7a">Prêt à exécuter...</span>';
+  document.getElementById('ai-output').style.display = 'none';
+  document.getElementById('lines').textContent = '0 lignes';
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+@app.get("/tools/sentiment")
+def sentiment_page():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analyse Sentiment — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}
+.wrap{max-width:700px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}
+.logo{font-family:Orbitron,sans-serif;color:#ffd700;font-size:0.85em;letter-spacing:3px}
+.back{color:#4a6a7a;font-size:0.75em;text-decoration:none}
+.box{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px;margin-bottom:16px}
+.label{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:8px;display:block}
+textarea{width:100%;background:#040812;border:1px solid #1a2535;color:#fff;padding:10px;font-family:'JetBrains Mono',monospace;font-size:0.8em;border-radius:4px;min-height:100px;resize:vertical}
+.btn{width:100%;padding:12px;background:#ffd700;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.75em;font-weight:700;cursor:pointer;border-radius:4px;letter-spacing:2px;margin-top:8px}
+.result{display:none;margin-top:16px}
+.sentiment-bar{height:30px;border-radius:4px;margin-bottom:8px;display:flex;align-items:center;padding:0 12px;font-size:0.8em;font-weight:700;transition:width 0.5s}
+.score{font-family:Orbitron,sans-serif;font-size:2em;font-weight:900;text-align:center;margin:12px 0}
+.details{font-size:0.78em;line-height:1.7;color:#ccc}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">💭 ANALYSE SENTIMENT</div><a class="back" href="/tools">← Tools</a></div>
+<div class="box">
+  <label class="label">TEXTE À ANALYSER</label>
+  <textarea id="text" placeholder="Entrez votre texte ici...&#10;&#10;Ex: Ce produit est absolument fantastique, je l'adore !&#10;Ex: Ce service est décevant et lent."></textarea>
+  <button class="btn" onclick="analyze()">💭 ANALYSER</button>
+</div>
+<div class="result" id="result">
+  <div class="box">
+    <div class="score" id="emoji"></div>
+    <div class="score" id="score-val"></div>
+    <div id="bars"></div>
+    <div class="details" id="details"></div>
+  </div>
+</div>
+</div>
+<script>
+async function analyze() {
+  const text = document.getElementById('text').value.trim();
+  if (!text) return;
+  
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: `Analyse le sentiment de ce texte et réponds UNIQUEMENT en JSON avec ce format exact:
+{"sentiment": "POSITIF" ou "NÉGATIF" ou "NEUTRE", "score": nombre entre -100 et 100, "emotions": ["emotion1","emotion2"], "explication": "explication courte"}
+
+Texte: "${text}"`,
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  
+  try {
+    const clean = r.response.replace(/```json|```/g,'').trim();
+    const data = JSON.parse(clean);
+    const score = data.score || 0;
+    const sentiment = data.sentiment || 'NEUTRE';
+    const color = score > 20 ? '#00ff88' : score < -20 ? '#ff4444' : '#ffd700';
+    const emoji = score > 20 ? '😊' : score < -20 ? '😟' : '😐';
+    
+    document.getElementById('emoji').textContent = emoji;
+    document.getElementById('score-val').innerHTML = `<span style="color:${color}">${sentiment} (${score > 0 ? '+' : ''}${score})</span>`;
+    
+    const barWidth = Math.abs(score);
+    document.getElementById('bars').innerHTML = `
+      <div style="margin-bottom:8px;font-size:0.65em;color:#4a6a7a;font-family:Orbitron,sans-serif;letter-spacing:2px">INTENSITÉ</div>
+      <div style="height:8px;background:#1a2535;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${barWidth}%;background:${color};border-radius:4px;transition:width 0.5s"></div>
+      </div>
+      <div style="margin-top:12px;font-size:0.65em;color:#4a6a7a">ÉMOTIONS: ${(data.emotions||[]).join(' · ')}</div>
+    `;
+    document.getElementById('details').textContent = data.explication || '';
+    document.getElementById('result').style.display = 'block';
+  } catch(e) {
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('emoji').textContent = '🤔';
+    document.getElementById('details').textContent = r.response;
+  }
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# SYSTÈME DE RÉPUTATION UTILISATEUR
+# ══════════════════════════════════════════════════════════
+
 @app.get("/tools/{tool_name}")
 def tool_page(tool_name: str):
     tools = {
@@ -7951,6 +8189,390 @@ OPENROUTER:
 </div></body></html>"""
     return HTMLResponse(html)
 
+# ══════════════════════════════════════════════════════════
+# STATS AVANCÉES
+# ══════════════════════════════════════════════════════════
+
+@app.get("/stats/advanced")
+def advanced_stats():
+    conn = get_db()
+    
+    # Stats globales
+    total_agents = conn.execute("SELECT COUNT(*) as c FROM agents WHERE total_score > 0").fetchone()["c"]
+    total_submissions = conn.execute("SELECT COUNT(*) as c FROM submissions").fetchone()["c"]
+    total_challenges = conn.execute("SELECT COUNT(DISTINCT challenge_id) as c FROM submissions").fetchone()["c"]
+    
+    # Top catégories
+    top_cats = conn.execute("""
+        SELECT category, COUNT(*) as total, 
+               SUM(CASE WHEN correct=1 THEN 1 ELSE 0 END) as correct
+        FROM submissions GROUP BY category ORDER BY total DESC LIMIT 10
+    """).fetchall()
+    
+    # Activité par heure (24h)
+    activity = conn.execute("""
+        SELECT strftime('%H', submitted_at) as hour, COUNT(*) as count
+        FROM submissions 
+        WHERE submitted_at > datetime('now', '-1 day')
+        GROUP BY hour ORDER BY hour
+    """).fetchall()
+    
+    # Agents les plus actifs
+    top_agents = conn.execute("""
+        SELECT agent_name, COUNT(*) as submissions, 
+               SUM(CASE WHEN correct=1 THEN 1 ELSE 0 END) as wins
+        FROM submissions GROUP BY agent_name ORDER BY submissions DESC LIMIT 5
+    """).fetchall()
+    
+    conn.close()
+    
+    cats_html = ""
+    for c in top_cats:
+        acc = round(c["correct"]/max(c["total"],1)*100)
+        bar = acc
+        cats_html += f"""<div style="margin-bottom:10px">
+<div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:3px">
+  <span>{c["category"]}</span>
+  <span style="color:#00ff88">{acc}% ({c["total"]} submissions)</span>
+</div>
+<div style="height:4px;background:#1a2535;border-radius:2px">
+  <div style="height:100%;width:{bar}%;background:#00ff88;border-radius:2px"></div>
+</div>
+</div>"""
+    
+    agents_html = ""
+    for i, a in enumerate(top_agents):
+        acc = round(a["wins"]/max(a["submissions"],1)*100)
+        agents_html += f"""<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #0d1117;font-size:0.75em">
+<span style="color:#{'ffd700' if i==0 else 'ccc'}">{a["agent_name"]}</span>
+<span style="color:#4a6a7a">{a["submissions"]} soumissions · {acc}%</span>
+</div>"""
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stats Avancées — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:900px;margin:0 auto}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
+.logo{{font-family:Orbitron,sans-serif;color:#00ff88;font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}}
+.stat{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:16px;text-align:center}}
+.stat-val{{font-family:Orbitron,sans-serif;font-size:1.8em;font-weight:900;color:#00ff88}}
+.stat-label{{font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-top:4px}}
+.box{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px;margin-bottom:16px}}
+.box-title{{font-family:Orbitron,sans-serif;font-size:0.7em;color:#4a6a7a;letter-spacing:2px;margin-bottom:16px}}
+.two-col{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">📊 STATS AVANCÉES</div><a class="back" href="/">← Arena</a></div>
+
+<div class="grid">
+  <div class="stat"><div class="stat-val">{total_agents}</div><div class="stat-label">AGENTS</div></div>
+  <div class="stat"><div class="stat-val">{total_submissions:,}</div><div class="stat-label">SOUMISSIONS</div></div>
+  <div class="stat"><div class="stat-val">{total_challenges}</div><div class="stat-label">CHALLENGES</div></div>
+  <div class="stat"><div class="stat-val">{round(total_submissions/max(total_agents,1))}</div><div class="stat-label">MOY/AGENT</div></div>
+</div>
+
+<div class="two-col">
+  <div class="box">
+    <div class="box-title">TOP CATÉGORIES</div>
+    {cats_html}
+  </div>
+  <div class="box">
+    <div class="box-title">AGENTS LES PLUS ACTIFS</div>
+    {agents_html}
+  </div>
+</div>
+
+<div class="box">
+  <div class="box-title">PARTAGER CES STATS</div>
+  <button onclick="shareStats()" style="padding:10px 20px;background:#00ff88;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;letter-spacing:2px;font-weight:700">📢 PARTAGER SUR X</button>
+</div>
+</div>
+<script>
+function shareStats() {{
+  const text = encodeURIComponent("📊 NexusArena Stats:\n{total_agents} agents · {total_submissions:,} soumissions · {total_challenges} challenges\n\nTestez votre agent 👇\n" + window.location.origin + "/beat");
+  window.open("https://twitter.com/intent/tweet?text="+text,"_blank");
+}}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# CODE EXECUTOR
+# ══════════════════════════════════════════════════════════
+
+
+@app.post("/tools/execute")
+async def execute_code(request: Request):
+    """Exécuter du code Python en sandbox"""
+    import subprocess, tempfile, sys
+    body = await request.json()
+    code = body.get("code","")
+    lang = body.get("lang","python")
+    
+    if not code:
+        return {"error": "No code provided"}
+    
+    # Sécurité basique — bloquer les imports dangereux
+    dangerous = ["os.system","subprocess","__import__","eval(","exec(","open(",
+                 "shutil","socket","requests","urllib","http"]
+    for d in dangerous:
+        if d in code:
+            return {"error": f"Interdit pour des raisons de sécurité: {d}"}
+    
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+            f.write(code)
+            fname = f.name
+        
+        result = subprocess.run(
+            [sys.executable, fname],
+            capture_output=True, text=True, timeout=5
+        )
+        os.unlink(fname)
+        
+        if result.returncode == 0:
+            return {"output": result.stdout[:2000], "ok": True}
+        else:
+            return {"error": result.stderr[:500], "ok": False}
+    except subprocess.TimeoutExpired:
+        return {"error": "Timeout — code trop long (max 5s)"}
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+# ══════════════════════════════════════════════════════════
+# ANALYSE DE SENTIMENT
+# ══════════════════════════════════════════════════════════
+
+
+@app.get("/user/{username}")
+def user_profile(username: str):
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS user_reputation (
+        username TEXT PRIMARY KEY,
+        points INTEGER DEFAULT 0,
+        badges TEXT DEFAULT '[]',
+        contributions INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    
+    # Créer si inexistant
+    conn.execute("INSERT OR IGNORE INTO user_reputation (username) VALUES (?)", (username,))
+    conn.commit()
+    
+    user = conn.execute("SELECT * FROM user_reputation WHERE username=?", (username,)).fetchone()
+    
+    # Stats de l'utilisateur
+    prompts = conn.execute("SELECT COUNT(*) as c FROM prompts WHERE author=?", (username,)).fetchone()["c"]
+    crews = conn.execute("SELECT COUNT(*) as c FROM public_crews WHERE owner=?", (username,)).fetchone()["c"]
+    votes = conn.execute("SELECT COUNT(*) as c FROM playground_votes WHERE session_id LIKE ?", (f"%{username}%",)).fetchone()["c"]
+    
+    # Calculer le niveau
+    points = (prompts * 10) + (crews * 20) + (votes * 5)
+    conn.execute("UPDATE user_reputation SET points=?, contributions=? WHERE username=?",
+        (points, prompts+crews+votes, username))
+    conn.commit()
+    conn.close()
+    
+    level = "Novice" if points < 50 else "Explorer" if points < 200 else "Builder" if points < 500 else "Expert" if points < 1000 else "Master"
+    level_color = {"Novice":"#4a6a7a","Explorer":"#00aaff","Builder":"#00ff88","Expert":"#9955ff","Master":"#ffd700"}[level]
+    
+    next_level = {"Novice":"Explorer","Explorer":"Builder","Builder":"Expert","Expert":"Master","Master":"Legende"}.get(level,"?")
+    bar_pct = min(100, int(points % 500 / 5))
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{username} — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:700px;margin:0 auto}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
+.logo{{font-family:Orbitron,sans-serif;color:#00ff88;font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.profile-card{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:24px;text-align:center;margin-bottom:16px}}
+.avatar{{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,{level_color},{level_color}44);display:flex;align-items:center;justify-content:center;font-size:2em;margin:0 auto 12px}}
+.username{{font-family:Orbitron,sans-serif;font-size:1.1em;color:#fff;margin-bottom:4px}}
+.level{{display:inline-block;padding:4px 12px;border:1px solid {level_color};color:{level_color};font-size:0.7em;border-radius:20px;font-family:Orbitron,sans-serif;letter-spacing:2px}}
+.points{{font-family:Orbitron,sans-serif;font-size:2em;color:{level_color};font-weight:900;margin:12px 0}}
+.stats-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}}
+.stat{{background:#080d16;border:1px solid #1a2535;border-radius:6px;padding:14px;text-align:center}}
+.stat-val{{font-family:Orbitron,sans-serif;font-size:1.3em;color:#00ff88}}
+.stat-label{{font-size:0.6em;color:#4a6a7a;letter-spacing:1px;margin-top:4px}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">👤 PROFIL</div><a class="back" href="/">← Arena</a></div>
+
+<div class="profile-card">
+  <div class="avatar">{username[0].upper()}</div>
+  <div class="username">{username}</div>
+  <div class="level">{level}</div>
+  <div class="points">{points} pts</div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat"><div class="stat-val">{prompts}</div><div class="stat-label">PROMPTS</div></div>
+  <div class="stat"><div class="stat-val">{crews}</div><div class="stat-label">CREWS</div></div>
+  <div class="stat"><div class="stat-val">{votes}</div><div class="stat-label">VOTES</div></div>
+</div>
+
+<div style="background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px">
+  <div style="font-family:Orbitron,sans-serif;font-size:0.65em;color:#4a6a7a;letter-spacing:2px;margin-bottom:12px">PROGRESSION</div>
+  <div style="font-size:0.75em;color:#4a6a7a;margin-bottom:6px">Niveau suivant: {next_level}</div>
+  <div style="height:8px;background:#1a2535;border-radius:4px;overflow:hidden">
+    <div style="height:100%;width:{bar_pct}%;background:{level_color};border-radius:4px"></div>
+  </div>
+  <div style="margin-top:16px;font-size:0.72em;color:#4a6a7a">
+    💡 Gagnez des points en : publiant des prompts (+10), créant des crews (+20), votant (+5)
+  </div>
+</div>
+</div></body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# LEADERBOARD LIVE (SSE)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/leaderboard/live")
+async def leaderboard_live():
+    """Server-Sent Events pour leaderboard temps réel"""
+    import asyncio
+    from fastapi.responses import StreamingResponse
+    
+    async def generate():
+        while True:
+            conn = get_db()
+            agents = conn.execute(
+                "SELECT name, total_score, tier FROM agents WHERE total_score > 0 ORDER BY total_score DESC LIMIT 10"
+            ).fetchall()
+            conn.close()
+            
+            import json as _json
+            data = [{"rank":i+1,"name":a["name"],"score":round(a["total_score"]),"tier":a["tier"]} 
+                    for i,a in enumerate(agents)]
+            
+            yield f"data: {_json.dumps(data)}\n\n"
+            await asyncio.sleep(10)
+    
+    return StreamingResponse(generate(), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+
+# ══════════════════════════════════════════════════════════
+# ARENA QUIZ — TESTER SES CONNAISSANCES IA
+# ══════════════════════════════════════════════════════════
+
+@app.get("/quiz")
+def arena_quiz():
+    questions = [
+        {"q":"Quel modèle est #1 sur NexusArena ?","answers":["GPT-4","Kimi K2","Claude","Llama"],"correct":1},
+        {"q":"Combien de challenges sur NexusArena ?","answers":["100","200","297","500"],"correct":2},
+        {"q":"Quel provider offre 1800 tok/s ?","answers":["Groq","Cerebras","OpenRouter","Ollama"],"correct":1},
+        {"q":"Que signifie MoE ?","answers":["Model of Excellence","Mixture of Experts","More of Everything","Mode of Evaluation"],"correct":1},
+        {"q":"Quel modèle est open source ET local ?","answers":["GPT-4","Claude","Phi3","Gemini"],"correct":2},
+    ]
+    
+    import json as _json
+    q_json = _json.dumps(questions)
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arena Quiz — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:600px;margin:0 auto}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
+.logo{{font-family:Orbitron,sans-serif;color:#ffd700;font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.question{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:24px;margin-bottom:16px}}
+.q-num{{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:12px}}
+.q-text{{font-size:0.9em;margin-bottom:16px;line-height:1.5}}
+.answers{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.answer{{padding:12px;border:1px solid #1a2535;background:#040812;color:#ccc;cursor:pointer;border-radius:4px;font-size:0.78em;text-align:center;transition:all 0.2s}}
+.answer:hover{{border-color:#ffd700;color:#ffd700}}
+.answer.correct{{border-color:#00ff88;background:#001a0d;color:#00ff88}}
+.answer.wrong{{border-color:#ff4444;background:#1a0000;color:#ff4444}}
+.progress{{background:#1a2535;height:4px;border-radius:2px;margin-bottom:20px;overflow:hidden}}
+.progress-fill{{height:100%;background:#ffd700;border-radius:2px;transition:width 0.3s}}
+.score-box{{text-align:center;padding:30px;display:none}}
+.final-score{{font-family:Orbitron,sans-serif;font-size:3em;color:#ffd700;font-weight:900}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">🧠 ARENA QUIZ</div><a class="back" href="/">← Arena</a></div>
+<div class="progress"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+<div id="quiz-container"></div>
+<div class="score-box" id="score-box">
+  <div style="font-size:2em;margin-bottom:12px">🏆</div>
+  <div class="final-score" id="final-score"></div>
+  <div style="color:#4a6a7a;font-size:0.8em;margin-top:8px">Score Final</div>
+  <div style="margin-top:20px;display:flex;gap:10px;justify-content:center">
+    <button onclick="shareQuiz()" style="padding:10px 20px;background:#ffd700;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.65em;cursor:pointer;border-radius:4px;letter-spacing:2px;font-weight:700">📢 PARTAGER</button>
+    <button onclick="restartQuiz()" style="padding:10px 20px;background:transparent;border:1px solid #4a6a7a;color:#4a6a7a;font-family:Orbitron,sans-serif;font-size:0.65em;cursor:pointer;border-radius:4px;letter-spacing:2px">🔄 REJOUER</button>
+  </div>
+</div>
+</div>
+<script>
+const questions = {q_json};
+let current = 0;
+let score = 0;
+
+function showQuestion() {{
+  if (current >= questions.length) {{
+    document.getElementById('quiz-container').style.display = 'none';
+    document.getElementById('score-box').style.display = 'block';
+    document.getElementById('final-score').textContent = score + '/' + questions.length;
+    return;
+  }}
+  
+  const q = questions[current];
+  document.getElementById('progress').style.width = (current/questions.length*100) + '%';
+  
+  document.getElementById('quiz-container').innerHTML = `
+    <div class="question">
+      <div class="q-num">QUESTION ${{current+1}}/${{questions.length}}</div>
+      <div class="q-text">${{q.q}}</div>
+      <div class="answers">
+        ${{q.answers.map((a,i) => `<div class="answer" onclick="answer(${{i}},${{q.correct}})">${{a}}</div>`).join('')}}
+      </div>
+    </div>
+  `;
+}}
+
+function answer(idx, correct) {{
+  const answers = document.querySelectorAll('.answer');
+  answers.forEach((a,i) => {{
+    a.onclick = null;
+    if (i === correct) a.classList.add('correct');
+    else if (i === idx && idx !== correct) a.classList.add('wrong');
+  }});
+  if (idx === correct) score++;
+  current++;
+  setTimeout(showQuestion, 1200);
+}}
+
+function shareQuiz() {{
+  const text = encodeURIComponent(`🧠 J'ai eu ${{score}}/${{questions.length}} au NexusArena Quiz !\n\nTeste tes connaissances IA 👇\n` + window.location.href);
+  window.open('https://twitter.com/intent/tweet?text='+text,'_blank');
+}}
+
+function restartQuiz() {{
+  current = 0; score = 0;
+  document.getElementById('quiz-container').style.display = 'block';
+  document.getElementById('score-box').style.display = 'none';
+  showQuestion();
+}}
+
+showQuestion();
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
 init_db()
 
 @app.get("/", response_class=HTMLResponse)
@@ -8187,6 +8809,12 @@ footer{text-align:center;padding:25px;color:var(--tx2);border-top:1px solid var(
   </a>
   <a href="/crews" style="padding:14px 25px;background:transparent;border:1px solid #9955ff;color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
     🤝 CREWS
+  </a>
+  <a href="/quiz" style="padding:14px 25px;background:transparent;border:1px solid #ffd700;color:#ffd700;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
+    🧠 QUIZ
+  </a>
+  <a href="/stats/advanced" style="padding:14px 25px;background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
+    📊 STATS
   </a>
   <a href="/docs/api" style="padding:14px 25px;background:transparent;border:1px solid #1a2535;color:#4a6a7a;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
     📖 API DOCS
