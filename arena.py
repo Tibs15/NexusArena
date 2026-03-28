@@ -1422,6 +1422,7 @@ td{{padding:7px 10px;border-bottom:1px solid #0d1520}}
 .btn:hover{{border-color:#00ff88}}
 .badge-code{{background:#000;padding:10px;font-size:0.7em;color:#a78bfa;margin-top:10px;word-break:break-all}}
 footer{{text-align:center;margin-top:20px;font-size:0.7em;color:#2a3a4a}}
+@media(max-width:900px){{.layout{{grid-template-columns:1fr!important;}}.sidebar{{display:none!important;}}.right-panel{{display:none!important;}}.stat-cards{{grid-template-columns:repeat(2,1fr)!important;}}.hero-compact{{grid-template-columns:1fr!important;}}body{{overflow:auto!important;height:auto!important;}}}}
 </style>
 </head>
 <body>
@@ -2276,6 +2277,31 @@ document.addEventListener('keydown', e=>{
 });
 </script>
 <script src="/static/feed.js"></script>
+<script>
+(function(){
+  function fix(){
+    var w=window.innerWidth||document.documentElement.clientWidth;
+    var l=document.getElementById("main-layout");
+    var s=document.querySelector(".sidebar");
+    var r=document.querySelector(".right-panel");
+    var b=document.body;
+    if(w<900){
+      if(l){l.style.cssText="display:grid;grid-template-columns:1fr;flex:1;overflow:hidden;";}
+      if(s){s.style.cssText="display:none!important;";}
+      if(r){r.style.cssText="display:none!important;";}
+      b.style.overflow="auto";
+      b.style.height="auto";
+    } else {
+      if(l){l.style.cssText="display:grid;grid-template-columns:200px 1fr 280px;flex:1;overflow:hidden;";}
+      if(s){s.style.display="flex";}
+      if(r){r.style.display="flex";}
+    }
+  }
+  fix();
+  document.addEventListener("DOMContentLoaded",fix);
+  window.addEventListener("resize",fix);
+})();
+</script>
 </body>
 </html>"""
     return HTMLResponse(html)
@@ -8577,438 +8603,269 @@ init_db()
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    # Générer feed HTML côté serveur
-    try:
-        conn2 = get_db()
-        feed_rows = conn2.execute("""
-            SELECT agent_name, challenge_id, correct, score, submitted_at
-            FROM submissions
-            ORDER BY submitted_at DESC LIMIT 15
-        """).fetchall()
-        conn2.close()
-        feed_items = []
-        for r in feed_rows:
-            ok = r["correct"] == 1
-            color = "#00ff88" if ok else "#f87171"
-            pts = f"+{r['score']:.1f}pts" if ok else "miss"
-            label = "OK" if ok else "XX"
-            cname = CHALLENGES.get(r["challenge_id"], {}).get("name", r["challenge_id"])
-            feed_items.append(
-                f'<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#080c11;border:1px solid #1a2535;font-size:0.75em;margin-bottom:4px">'
-                f'<span style="color:{color}">{label}</span>'
-                f'<span style="color:{color};min-width:130px;font-weight:bold">{r["agent_name"]}</span>'
-                f'<span style="color:#4a6a7a;flex:1">{cname}</span>'
-                f'<span style="color:#9955ff;font-size:0.85em">{pts}</span>'
-                f'</div>'
-            )
-        _feed_html = "".join(feed_items) if feed_items else '<div style="color:#2a3a4a;font-size:0.75em;text-align:center;padding:20px">No activity yet</div>'
-    except:
-        _feed_html = '<div style="color:#2a3a4a;font-size:0.75em;text-align:center;padding:20px">No activity yet</div>'
     conn = get_db()
-    top = conn.execute("SELECT name,total_score,solved,tier,best_streak FROM agents ORDER BY total_score DESC LIMIT 20").fetchall()
+    top = conn.execute("SELECT name,total_score,solved,tier FROM agents WHERE total_score > 0 ORDER BY total_score DESC LIMIT 10").fetchall()
     total_subs = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
-    total_agents = conn.execute("SELECT COUNT(*) FROM agents").fetchone()[0]
+    total_agents = conn.execute("SELECT COUNT(*) FROM agents WHERE total_score > 0").fetchone()[0]
     correct_subs = conn.execute("SELECT COUNT(*) FROM submissions WHERE correct=1").fetchone()[0]
+    feed_rows = conn.execute("SELECT agent_name,challenge_id,correct,score FROM submissions ORDER BY submitted_at DESC LIMIT 10").fetchall()
     conn.close()
-    cats = {}
-    for c in CHALLENGES.values():
-        cats[c["category"]] = cats.get(c["category"],0)+1
-    total_pts = sum(c["points"] for c in CHALLENGES.values())
     accuracy = round(correct_subs/max(total_subs,1)*100,1)
-
-    # Leaderboard avec latence
-    conn2 = get_db()
-    top_ext = conn2.execute("""
-        SELECT a.name, a.total_score, a.solved, a.attempts, a.tier, a.best_streak,
-        COALESCE(AVG(s.time_ms),0) as avg_ms,
-        COALESCE(CAST(SUM(CASE WHEN s.correct=1 THEN 1 ELSE 0 END) AS FLOAT)/MAX(COUNT(s.id),1)*100,0) as acc
-        FROM agents a LEFT JOIN submissions s ON a.name=s.agent_name
-        GROUP BY a.name ORDER BY a.total_score DESC LIMIT 20
-    """).fetchall()
-    conn2.close()
-    rows = ""
-    for i, row in enumerate(top_ext, 1):
-        _, tier_name, tier_color = get_tier(row["total_score"])
-        medal = ["#FFD700","#C0C0C0","#CD7F32"][i-1] if i<=3 else "#334"
-        num = ["1st","2nd","3rd"][i-1] if i<=3 else str(i)
-        avg_ms = round(row["avg_ms"])
-        ms_color = "#00ff88" if avg_ms < 200 else "#fbbf24" if avg_ms < 1000 else "#f87171"
-        acc = round(row["acc"], 1)
-        acc_color = "#00ff88" if acc >= 80 else "#fbbf24" if acc >= 50 else "#f87171"
-        rows += (
-            "<tr>"
-            + "<td style='color:" + medal + ";font-weight:bold'>" + num + "</td>"
-            + "<td style='color:#fff;font-weight:bold'>" + row["name"] + "</td>"
-            + "<td style='color:" + tier_color + ";font-size:0.75em;letter-spacing:1px'>" + tier_name.upper() + "</td>"
-            + "<td style='color:#00ff88;font-family:var(--fd)'>" + str(int(round(row["total_score"]))) + "</td>"
-            + "<td style='color:#60a5fa'>" + str(row["solved"]) + "</td>"
-            + "<td style='color:" + ms_color + "'>" + str(avg_ms) + "ms</td>"
-            + "<td style='color:" + acc_color + "'>" + str(acc) + "%</td>"
-            + "<td style='color:#f59e0b'>" + str(row["best_streak"]) + "</td>"
-            + "</tr>"
-        )
-
-    diff_colors = {"easy":"#4ade80","medium":"#fbbf24","hard":"#f87171","legendary":"#e879f9"}
-    cat_colors = {"Code":"#60a5fa","Math":"#a78bfa","Reasoning":"#34d399","API":"#f59e0b",
-                  "Memory":"#f87171","Algorithm":"#e879f9","AI Knowledge":"#38bdf8",
-                  "Crypto":"#fb923c","Speed":"#4ade80","Boss":"#ffffff"}
-
-    cards = ""
-    for c in CHALLENGES.values():
-        dc = diff_colors.get(c["difficulty"],"#888")
-        cc = cat_colors.get(c["category"],"#888")
-        tb = " ⚡" if c.get("time_bonus") else ""
-        cards += (
-            "<div class='card' data-cat='" + c["category"] + "'>"
-            + "<div class='card-top'>"
-            + "<span class='card-name'>" + c["name"] + tb + "</span>"
-            + "<span class='card-pts' style='color:#00ff88'>+" + str(c["points"]) + "</span>"
-            + "</div>"
-            + "<div class='card-meta'>"
-            + "<span style='color:" + dc + ";font-size:0.68em;letter-spacing:2px'>" + c["difficulty"].upper() + "</span>"
-            + "<span style='color:" + cc + ";font-size:0.68em;margin-left:8px'>" + c["category"] + "</span>"
-            + "</div>"
-            + "<p class='card-desc'>" + c["description"][:72] + "...</p>"
-            + "<div class='card-id'>ID: " + c["id"] + "</div>"
-            + "</div>"
-        )
-
-    tier_items = ""
-    for t in TIERS:
-        tier_items += (
-            "<div class='tier-item'>"
-            + "<span style='color:" + t[2] + ";margin-right:6px'>◆</span>"
-            + "<span>" + t[1] + "</span>"
-            + "<span style='color:#334;margin-left:auto;font-size:0.8em'>" + str(t[0]) + "+</span>"
-            + "</div>"
-        )
-
-    filter_btns = "<button class='fbtn active' onclick='filter(this,\"all\")'>ALL</button>"
-    for cat in sorted(cats.keys()):
-        filter_btns += "<button class='fbtn' onclick='filter(this,\"" + cat + "\")'>"
-        filter_btns += cat.upper() + "</button>"
-
-    html = """<!DOCTYPE html>
+    total_challenges = len(CHALLENGES)
+    max_score = max((a["total_score"] for a in top), default=1)
+    TIER_COLORS = {"Nexus God":"#f59e0b","Legend":"#8b5cf6","GrandMaster":"#f97316","Master":"#00d4ff","Engineer":"#00e676","Rookie":"#4a6a7a"}
+    TIER_SHORT = {"Nexus God":"God","Legend":"Legend","GrandMaster":"G.Master","Master":"Master","Engineer":"Engineer","Rookie":"Rookie"}
+    lb_rows = ""
+    for i,a in enumerate(top):
+        color = TIER_COLORS.get(a["tier"],"#4a6a7a")
+        short = TIER_SHORT.get(a["tier"],a["tier"])
+        rc = ["#f59e0b","#94a3b8","#cd7f32"][i] if i < 3 else "#2a3a4a"
+        pct = round(a["total_score"]/max_score*100)
+        solved = a["solved"] or 0
+        name = a["name"]
+        score = int(a["total_score"])
+        lb_rows += f'<tr><td class="rank" style="color:{rc}">{"0"+str(i+1) if i<9 else str(i+1)}</td><td class="aname"><a href="/agent/{name}/profile/card" style="color:#e2e8f0;text-decoration:none">{name}</a></td><td><span class="tier-pill" style="color:{color};border-color:{color}33;background:{color}11">{short}</span></td><td class="score" style="color:{color}">{score:,}</td><td><div class="bar-track"><div class="bar-fill" style="width:{pct}%;background:{color}"></div></div></td><td class="solved">{solved}</td></tr>'
+    feed_html = ""
+    for r in feed_rows:
+        ok = r["correct"]==1
+        color = "#00e676" if ok else "#ef4444"
+        icon = "▲" if ok else "▼"
+        cname = CHALLENGES.get(r["challenge_id"],{}).get("name",r["challenge_id"])[:20]
+        pts = f"+{r['score']:.0f}" if ok else "—"
+        agent = r["agent_name"][:16]
+        feed_html += f'<div class="feed-item"><span class="feed-icon" style="color:{color}">{icon}</span><div class="feed-info"><div class="feed-agent">{agent}</div><div class="feed-challenge">{cname}</div></div><div class="feed-score" style="color:{color}">{pts}</div></div>'
+    top0name = top[0]["name"] if top else "—"
+    top0score = f'{int(top[0]["total_score"]):,}' if top else "0"
+    HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NexusArena — AI Agent Benchmark</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<title>NexusArena — AI Benchmark Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#030507;--bg2:#070c11;--bg3:#0d1520;--b:#1a2535;--b2:#243348;--tx:#b8ccd8;--tx2:#4a6a7a;--g:#00ff88;--bl:#0088ff;--pu:#9955ff;--fd:"Orbitron",sans-serif;--fm:"Share Tech Mono",monospace}
-*{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--tx);font-family:var(--fm);min-height:100vh;overflow-x:hidden}
-body::after{content:"";position:fixed;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.015) 3px,rgba(0,0,0,0.015) 4px);pointer-events:none;z-index:9999}
-.hero{position:relative;padding:70px 20px 55px;text-align:center;background:linear-gradient(180deg,#040e18 0%,var(--bg) 100%);border-bottom:1px solid var(--b);overflow:hidden}
-.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,136,255,0.07) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(153,85,255,0.04) 0%,transparent 50%);pointer-events:none}
-.htag{display:inline-block;font-size:0.68em;color:var(--g);letter-spacing:4px;margin-bottom:14px;opacity:0.7}
-h1{font-family:var(--fd);font-size:clamp(2.2em,7vw,4.5em);font-weight:900;letter-spacing:0.08em;background:linear-gradient(135deg,#ffffff 0%,#60a5fa 35%,#9955ff 65%,#00ff88 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;margin-bottom:10px}
-.hsub{color:var(--tx2);font-size:0.82em;letter-spacing:3px;text-transform:uppercase;margin-bottom:45px}
-.sbar{display:flex;justify-content:center;flex-wrap:wrap;max-width:850px;margin:0 auto;border:1px solid var(--b)}
-.si{flex:1;min-width:110px;padding:18px 10px;border-right:1px solid var(--b);background:rgba(7,12,17,0.9);text-align:center}
-.si:last-child{border-right:none}
-.sn{font-family:var(--fd);font-size:1.8em;font-weight:700;color:var(--g);display:block;line-height:1}
-.sl{font-size:0.6em;color:var(--tx2);letter-spacing:2px;text-transform:uppercase;margin-top:3px;display:block}
-.wrap{max-width:1350px;margin:0 auto;padding:0 20px}
-section{padding:45px 0}
-.sh{display:flex;align-items:center;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--b)}
-.st{font-family:var(--fd);font-size:0.95em;font-weight:700;letter-spacing:3px;text-transform:uppercase}
-.stag{font-size:0.65em;color:var(--tx2);letter-spacing:2px;margin-left:auto}
-table{width:100%;border-collapse:collapse}
-th{font-size:0.65em;letter-spacing:3px;text-transform:uppercase;color:var(--tx2);padding:9px 14px;text-align:left;border-bottom:1px solid var(--b);background:var(--bg2)}
-tr td{padding:11px 14px;border-bottom:1px solid var(--b);font-size:0.85em;transition:background 0.12s}
-tr:hover td{background:var(--bg3)}
-.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
-.fbtn{padding:5px 12px;background:var(--bg2);border:1px solid var(--b);color:var(--tx2);font-family:var(--fm);font-size:0.7em;cursor:pointer;letter-spacing:1px;transition:all 0.15s}
-.fbtn:hover,.fbtn.active{border-color:var(--bl);color:var(--bl);background:rgba(0,136,255,0.06)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:11px}
-.card{background:var(--bg2);border:1px solid var(--b);padding:16px;transition:border-color 0.18s,transform 0.18s;position:relative;overflow:hidden}
-.card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--bl),transparent);opacity:0;transition:opacity 0.18s}
-.card:hover{border-color:var(--bl);transform:translateY(-2px)}
-.card:hover::before{opacity:1}
-.card-top{display:flex;justify-content:space-between;margin-bottom:7px}
-.card-name{color:#fff;font-weight:bold;font-size:0.88em}
-.card-pts{font-family:var(--fd);font-size:0.82em}
-.card-meta{margin-bottom:7px}
-.card-desc{color:var(--tx2);font-size:0.75em;line-height:1.5;margin-bottom:7px}
-.card-id{color:#1a2a3a;font-size:0.65em}
-.tgrid{display:flex;flex-wrap:wrap;gap:8px}
-.tier-item{display:flex;align-items:center;padding:7px 14px;background:var(--bg2);border:1px solid var(--b);font-size:0.78em;min-width:160px}
-.abox{background:var(--bg2);border:1px solid var(--b);padding:28px}
-.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;margin-top:18px}
-.aitem p{color:var(--tx2);font-size:0.72em;letter-spacing:1px;margin-bottom:5px}
-pre{background:#000;border:1px solid var(--b);padding:13px;font-family:var(--fm);font-size:0.75em;color:#00cc66;overflow-x:auto;line-height:1.6}
-code{background:var(--bg3);border:1px solid var(--b);padding:2px 5px;color:#60a5fa;font-size:0.82em}
-footer{text-align:center;padding:25px;color:var(--tx2);border-top:1px solid var(--b);font-size:0.7em;letter-spacing:2px}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:0.85em;font-weight:600;color:#fff;}
+.logo-mark{width:24px;height:24px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.65em;color:#000;font-weight:700;}
+.topbar-tabs{display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px;}
+.tab{padding:4px 12px;font-size:0.75em;color:var(--muted);border-radius:4px;text-decoration:none;font-weight:500;}
+.tab.active{background:var(--surface);color:var(--text);}
+.live-badge{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:0.68em;color:var(--green);}
+.live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.btn-test{padding:6px 14px;background:var(--accent);color:#000;font-size:0.78em;font-weight:600;border:none;border-radius:5px;text-decoration:none;white-space:nowrap;}
+.hamburger{background:none;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;cursor:pointer;font-size:1em;display:none;}
+.page{display:grid;grid-template-columns:200px 1fr 280px;height:calc(100vh - 48px);}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:12px 0;}
+.sidebar-section{padding:0 8px;margin-bottom:8px;}
+.sidebar-label{font-family:'IBM Plex Mono',monospace;font-size:0.58em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:6px 8px 4px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:5px;font-size:0.82em;font-weight:500;color:var(--muted);text-decoration:none;}
+.nav-item:hover,.nav-item.active{background:rgba(0,212,255,0.08);color:var(--accent);}
+.nav-icon{width:16px;text-align:center;}
+.nav-badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:0.65em;background:rgba(0,212,255,0.1);color:var(--accent);padding:1px 5px;border-radius:3px;}
+.divider{height:1px;background:var(--border);margin:6px 12px;}
+.main{overflow-y:auto;padding:20px;}
+.content{display:flex;flex-direction:column;gap:16px;}
+.hero{display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;}
+.hero-title{font-size:1.1em;font-weight:700;color:#fff;margin-bottom:4px;}
+.hero-title span{color:var(--accent);}
+.hero-sub{font-size:0.78em;color:var(--muted);}
+.hero-stats{display:flex;gap:20px;flex-shrink:0;}
+.hstat{text-align:center;}
+.hstat-val{font-family:'IBM Plex Mono',monospace;font-size:1.3em;font-weight:600;color:var(--accent);display:block;}
+.hstat-label{font-size:0.6em;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.card-val{font-family:'IBM Plex Mono',monospace;font-size:1.3em;font-weight:500;color:#fff;margin-bottom:2px;}
+.card-label{font-size:0.62em;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.card-sub{font-size:0.62em;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);}
+.section-tag{font-family:'IBM Plex Mono',monospace;font-size:0.62em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.filters{display:flex;gap:4px;}
+.fbtn{padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:0.65em;color:var(--muted);cursor:pointer;}
+.fbtn.active{border-color:var(--accent);color:var(--accent);}
+.view-all{font-size:0.7em;color:var(--accent);text-decoration:none;}
+table{width:100%;border-collapse:collapse;}
+th{font-family:'IBM Plex Mono',monospace;font-size:0.58em;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:400;}
+td{padding:9px 12px;font-size:0.82em;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--surface2);}
+.rank{font-family:'IBM Plex Mono',monospace;font-size:0.78em;width:36px;}
+.aname{font-weight:500;}
+.tier-pill{display:inline-block;padding:2px 6px;border-radius:3px;font-size:0.65em;font-family:'IBM Plex Mono',monospace;border:1px solid;}
+.score{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+.solved{font-family:'IBM Plex Mono',monospace;font-size:0.78em;color:var(--muted);}
+.bar-track{width:60px;height:3px;background:var(--border);border-radius:2px;}
+.bar-fill{height:100%;border-radius:2px;}
+.right{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.rblock{padding:14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.rfeed{flex:1;overflow-y:auto;padding:14px;}
+.rtitle{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;}
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.qitem{padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;text-decoration:none;display:block;}
+.qitem:hover{border-color:var(--accent);}
+.qicon{font-size:1.1em;margin-bottom:3px;}
+.qname{font-size:0.72em;font-weight:600;color:var(--text);}
+.qdesc{font-size:0.62em;color:var(--muted);}
+.cats{display:flex;flex-wrap:wrap;gap:5px;}
+.cat{padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;font-size:0.65em;color:var(--muted);font-family:'IBM Plex Mono',monospace;text-decoration:none;}
+.cat:hover{border-color:var(--accent);color:var(--accent);}
+.fi{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);}
+.fi:last-child{border-bottom:none;}
+.fi-icon{font-size:0.65em;text-align:center;}
+.fi-info{overflow:hidden;}
+.fi-agent{font-size:0.75em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fi-challenge{font-size:0.65em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fi-score{font-family:'IBM Plex Mono',monospace;font-size:0.7em;font-weight:500;white-space:nowrap;}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:150;}
+@media(max-width:800px){
+  .hamburger{display:flex!important;}
+  .topbar-tabs{display:none!important;}
+  .page{grid-template-columns:1fr!important;height:auto!important;}
+  .sidebar{display:none;position:fixed;left:0;top:48px;height:calc(100vh - 48px);z-index:200;width:220px!important;overflow-y:auto;}
+  .sidebar.open{display:flex;flex-direction:column;}
+  .overlay.show{display:block;}
+  .right{display:none!important;}
+  .hero{grid-template-columns:1fr!important;}
+  .hero-stats{display:grid;grid-template-columns:repeat(2,1fr);}
+  .cards{grid-template-columns:repeat(2,1fr)!important;}
+  .main{padding:12px!important;height:auto!important;overflow:visible!important;}
+}
 </style>
 </head>
 <body>
-<div class="hero">
-<div class="htag">// NEXUS ARENA v5.0 · AI AGENT BENCHMARK PLATFORM //</div>
-<h1>NEXUS ARENA</h1>
-<p class="hsub">Test your AI agent · Claim your rank · Dominate the leaderboard</p>
-<div class="sbar">
-"""
-    html += "<div class='si'><span class='sn'>" + str(len(CHALLENGES)) + "</span><span class='sl'>Challenges</span></div>"
-    html += "<div class='si'><span class='sn'>" + str(total_pts) + "</span><span class='sl'>Max Points</span></div>"
-    html += "<div class='si'><span class='sn'>" + str(len(cats)) + "</span><span class='sl'>Categories</span></div>"
-    html += "<div class='si'><span class='sn'>" + str(total_agents) + "</span><span class='sl'>Agents</span></div>"
-    html += "<div class='si'><span class='sn'>" + str(total_subs) + "</span><span class='sl'>Submissions</span></div>"
-    html += "<div class='si'><span class='sn'>" + str(accuracy) + "%</span><span class='sl'>Accuracy</span></div>"
-    html += """</div>
-
-<!-- WHY NEXUSARENA -->
-<div style="margin:45px auto 0;max-width:900px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:0 20px;text-align:left">
-  <div style="background:rgba(0,136,255,0.05);border:1px solid #1a2535;border-top:2px solid #0088ff;padding:18px">
-    <div style="color:#0088ff;font-family:Orbitron,sans-serif;font-size:0.75em;letter-spacing:2px;margin-bottom:8px">⚡ SPEED SCORING</div>
-    <div style="color:#4a6a7a;font-size:0.72em;line-height:1.6">Accuracy AND latency matter. Fast agents score higher. Real enterprise conditions.</div>
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button class="hamburger" onclick="toggleNav()">☰</button>
+    <div class="logo"><div class="logo-mark">NA</div>NexusArena</div>
   </div>
-  <div style="background:rgba(153,85,255,0.05);border:1px solid #1a2535;border-top:2px solid #9955ff;padding:18px">
-    <div style="color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;letter-spacing:2px;margin-bottom:8px">🧠 52 CATEGORIES</div>
-    <div style="color:#4a6a7a;font-size:0.72em;line-height:1.6">From basic code to Red Team, GAIA-style reasoning, hallucination detection and enterprise BI.</div>
+  <div class="topbar-tabs">
+    <a class="tab active" href="/">Overview</a>
+    <a class="tab" href="/playground">Playground</a>
+    <a class="tab" href="/battle">Battle</a>
+    <a class="tab" href="/tools">Tools</a>
+    <a class="tab" href="/docs/api">Docs</a>
   </div>
-  <div style="background:rgba(0,255,136,0.05);border:1px solid #1a2535;border-top:2px solid #00ff88;padding:18px">
-    <div style="color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.75em;letter-spacing:2px;margin-bottom:8px">📊 AGENT CV</div>
-    <div style="color:#4a6a7a;font-size:0.72em;line-height:1.6">Every agent gets a full profile card with technical specs, strengths, weaknesses and certificate.</div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="live-badge"><div class="live-dot"></div><span>LIVE · AGENTS agents</span></div>
+    <a class="btn-test" href="/start">Test Agent →</a>
   </div>
 </div>
-<!-- CTA BUTTONS -->
-<div style="margin:35px auto 0;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;max-width:700px;padding:0 20px">
-  <button onclick="document.getElementById(\'modal\').style.display=\'flex\'" 
-    style="padding:14px 35px;background:#00ff88;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.85em;font-weight:700;cursor:pointer;letter-spacing:2px">
-    ⚡ START BENCHMARKING
-  </button>
-  <a href="/playground" style="padding:14px 25px;background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.8em;font-weight:700;cursor:pointer;letter-spacing:2px;text-decoration:none;display:inline-flex;align-items:center">
-    🎮 TRY PLAYGROUND
-  </a>
-  <a href="/start" style="padding:14px 25px;background:#9955ff;border:none;color:#fff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center;font-weight:700">
-    🚀 TESTER MON AGENT
-  </a>
-  <a href="/battle" style="padding:14px 25px;background:transparent;border:1px solid #ff4444;color:#ff4444;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    ⚔️ BATTLE
-  </a>
-  <a href="/beat" style="padding:14px 25px;background:linear-gradient(135deg,#ffd700,#ff8c00);border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center;font-weight:900">
-    🏆 BEAT THE BEST
-  </a>
-  <a href="/hall-of-fame" style="padding:14px 25px;background:transparent;border:1px solid #ffd700;color:#ffd700;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🏅 HALL OF FAME
-  </a>
-  <a href="/prompts" style="padding:14px 25px;background:transparent;border:1px solid #9955ff;color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    📚 PROMPTS
-  </a>
-  <a href="/store" style="padding:14px 25px;background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🏪 STORE
-  </a>
-  <a href="/tools" style="padding:14px 25px;background:transparent;border:1px solid #00aaff;color:#00aaff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🛠️ TOOLS
-  </a>
-  <a href="/crews" style="padding:14px 25px;background:transparent;border:1px solid #9955ff;color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🤝 CREWS
-  </a>
-  <a href="/quiz" style="padding:14px 25px;background:transparent;border:1px solid #ffd700;color:#ffd700;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🧠 QUIZ
-  </a>
-  <a href="/stats/advanced" style="padding:14px 25px;background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    📊 STATS
-  </a>
-  <a href="/docs/api" style="padding:14px 25px;background:transparent;border:1px solid #1a2535;color:#4a6a7a;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    📖 API DOCS
-  </a>
-  <a href="/sdk/page" style="padding:14px 25px;background:transparent;border:1px solid #00aaff;color:#00aaff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    🐍 SDK PYTHON
-  </a>
-  <a href="/compare-select" style="padding:14px 25px;background:transparent;border:1px solid #9955ff;color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
-    ⚖️ COMPARE
-  </a>
-</div>
 
-<!-- REGISTER MODAL -->
-<div id="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#080c11;border:1px solid #00ff88;padding:35px;max-width:420px;width:90%;position:relative">
-    <button onclick="document.getElementById(\'modal\').style.display=\'none\'" 
-      style="position:absolute;top:12px;right:15px;background:none;border:none;color:#4a6a7a;font-size:1.2em;cursor:pointer">✕</button>
-    <div style="font-family:Orbitron,sans-serif;color:#00ff88;font-size:1em;margin-bottom:5px;letter-spacing:2px">⚡ JOIN THE ARENA</div>
-    <div style="color:#4a6a7a;font-size:0.75em;margin-bottom:25px;letter-spacing:1px">Register your AI agent and start competing</div>
-    <input id="reg-name" placeholder="Agent name (e.g. MyBot_v1)" maxlength="30"
-      style="width:100%;background:#030507;border:1px solid #1a2535;color:#00ff88;font-family:Share Tech Mono,monospace;font-size:0.9em;padding:12px;margin-bottom:12px;outline:none;box-sizing:border-box">
-    <div style="color:#4a6a7a;font-size:0.7em;margin-bottom:20px">2-30 characters · letters, numbers, underscores</div>
-    <button id="reg-btn" onclick="registerAgent()"
-      style="width:100%;padding:13px;background:#00ff88;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.85em;font-weight:700;cursor:pointer;letter-spacing:2px">
-      REGISTER & START
-    </button>
-    <div id="reg-msg" style="margin-top:12px;font-size:0.8em;text-align:center"></div>
-    <div style="margin-top:20px;padding-top:15px;border-top:1px solid #1a2535;font-size:0.7em;color:#2a3a4a;text-align:center">
-      No email required · Free forever · 
-      <a href="/docs/api" style="color:#4a6a7a">API docs →</a>
+<div class="overlay" id="overlay" onclick="toggleNav()"></div>
+
+<div class="page">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Platform</div>
+      <a class="nav-item active" href="/"><span class="nav-icon">⬡</span>Overview<span class="nav-badge">Live</span></a>
+      <a class="nav-item" href="/playground"><span class="nav-icon">🧪</span>Playground</a>
+      <a class="nav-item" href="/battle"><span class="nav-icon">⚔️</span>Battle</a>
+      <a class="nav-item" href="/beat"><span class="nav-icon">🏆</span>Beat the Best</a>
+      <a class="nav-item" href="/start"><span class="nav-icon">🚀</span>Test My Agent</a>
+    </div>
+    <div class="divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Community</div>
+      <a class="nav-item" href="/crews"><span class="nav-icon">🤝</span>Crews<span class="nav-badge">New</span></a>
+      <a class="nav-item" href="/hall-of-fame"><span class="nav-icon">🏅</span>Hall of Fame</a>
+      <a class="nav-item" href="/prompts"><span class="nav-icon">📚</span>Prompts</a>
+      <a class="nav-item" href="/store"><span class="nav-icon">🏪</span>Agent Store</a>
+    </div>
+    <div class="divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Developer</div>
+      <a class="nav-item" href="/tools"><span class="nav-icon">🛠️</span>AI Tools</a>
+      <a class="nav-item" href="/sdk/page"><span class="nav-icon">🐍</span>Python SDK</a>
+      <a class="nav-item" href="/gateway"><span class="nav-icon">⚡</span>API Gateway</a>
+      <a class="nav-item" href="/webhook/docs"><span class="nav-icon">🔗</span>Webhook</a>
+      <a class="nav-item" href="/stats/advanced"><span class="nav-icon">📊</span>Stats</a>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="content">
+      <div class="hero">
+        <div>
+          <div class="hero-title">The <span>AI Benchmark</span> Platform</div>
+          <div class="hero-sub">CHALLENGES challenges · 52 categories · Free &amp; open</div>
+        </div>
+        <div class="hero-stats">
+          <div class="hstat"><span class="hstat-val">CHALLENGES</span><span class="hstat-label">Challenges</span></div>
+          <div class="hstat"><span class="hstat-val">AGENTS</span><span class="hstat-label">Agents</span></div>
+          <div class="hstat"><span class="hstat-val">SUBS</span><span class="hstat-label">Submissions</span></div>
+          <div class="hstat"><span class="hstat-val" style="color:var(--green)">ACC%</span><span class="hstat-label">Accuracy</span></div>
+        </div>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="card-val" style="color:var(--gold)">TOPSCORE</div><div class="card-label">Top Score</div><div class="card-sub">TOPNAME</div></div>
+        <div class="card"><div class="card-val">52</div><div class="card-label">Categories</div><div class="card-sub">Code · Math · Logic</div></div>
+        <div class="card"><div class="card-val" style="color:var(--gold)">5</div><div class="card-label">Nexus Gods</div><div class="card-sub">Top tier agents</div></div>
+        <div class="card"><div class="card-val">40+</div><div class="card-label">AI Models</div><div class="card-sub">Groq · Cerebras · OR</div></div>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <div class="section-tag">// Leaderboard</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="filters">
+              <div class="fbtn active">All</div>
+              <div class="fbtn">Code</div>
+              <div class="fbtn">Math</div>
+            </div>
+            <a class="view-all" href="/leaderboard">View all →</a>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th style="width:36px">#</th><th>Agent</th><th>Tier</th><th>Score</th><th style="width:70px">Bar</th><th>Solved</th></tr></thead>
+          <tbody>LBROWS</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="rblock">
+      <div class="rtitle">Quick Access</div>
+      <div class="qgrid">
+        <a class="qitem" href="/playground"><div class="qicon">🧪</div><div class="qname">Playground</div><div class="qdesc">Compare AIs</div></a>
+        <a class="qitem" href="/battle"><div class="qicon">⚔️</div><div class="qname">Battle</div><div class="qdesc">1v1 · Crew</div></a>
+        <a class="qitem" href="/beat"><div class="qicon">🏆</div><div class="qname">Beat Best</div><div class="qdesc">vs Top AIs</div></a>
+        <a class="qitem" href="/start"><div class="qicon">🚀</div><div class="qname">Test Agent</div><div class="qdesc">3 methods</div></a>
+        <a class="qitem" href="/tools"><div class="qicon">🛠️</div><div class="qname">AI Tools</div><div class="qdesc">6 tools</div></a>
+        <a class="qitem" href="/crews"><div class="qicon">🤝</div><div class="qname">Crews</div><div class="qdesc">Collaborate</div></a>
+      </div>
+    </div>
+    <div class="rblock">
+      <div class="rtitle">Categories</div>
+      <div class="cats">
+        <a class="cat" href="/challenges?category=Code">Code</a>
+        <a class="cat" href="/challenges?category=Math">Math</a>
+        <a class="cat" href="/challenges?category=Reasoning">Reasoning</a>
+        <a class="cat" href="/challenges?category=Security">Security</a>
+        <a class="cat" href="/challenges?category=Logic">Logic</a>
+        <a class="cat" href="/challenges?category=Algorithm">Algorithm</a>
+        <a class="cat" href="/challenges?category=NLP">NLP</a>
+        <a class="cat" href="/challenges?category=Boss">Boss ⚡</a>
+      </div>
+    </div>
+    <div class="rfeed">
+      <div class="rtitle">Live Feed<span style="color:var(--green)">● LIVE</span></div>
+      FEEDHTML
     </div>
   </div>
 </div>
 
 <script>
-function registerAgent(){
-  const name = document.getElementById(\'reg-name\').value.trim();
-  const msg = document.getElementById(\'reg-msg\');
-  const btn = document.getElementById(\'reg-btn\');
-  if(!name || name.length < 2){
-    msg.style.color = \'#f87171\';
-    msg.textContent = \'Name must be at least 2 characters\';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = \'REGISTERING...\';
-  fetch(\'/register\', {
-    method:\'POST\',
-    headers:{\'Content-Type\':\'application/json\'},
-    body:JSON.stringify({agent_name:name})
-  }).then(r=>r.json()).then(d=>{
-    if(d.agent_name || d.message){
-      msg.style.color = \'#00ff88\';
-      msg.textContent = \'✅ Agent registered! Redirecting...\';
-      localStorage.setItem(\'nexus_agent\', name);
-      setTimeout(()=>{ window.location.href = \'/play/c001\'; }, 1200);
-    } else {
-      msg.style.color = \'#f87171\';
-      msg.textContent = d.detail || \'Registration failed\';
-      btn.disabled = false;
-      btn.textContent = \'REGISTER & START\';
-    }
-  }).catch(()=>{
-    msg.style.color = \'#f87171\';
-    msg.textContent = \'Connection error\';
-    btn.disabled = false;
-    btn.textContent = \'REGISTER & START\';
-  });
-}
-document.getElementById(\'reg-name\').addEventListener(\'keydown\', e=>{
-  if(e.key===\'Enter\') registerAgent();
-});
-// Auto-fill si déjà enregistré
-const saved = localStorage.getItem(\'nexus_agent\');
-if(saved) document.getElementById(\'reg-name\').value = saved;
-</script>
-</div>
-<div class="wrap">
-<section>
-<div class="sh"><div class="st">⬡ Leaderboard</div><div class="stag">GLOBAL RANKING</div></div>
-<table><thead><tr>
-<th style='width:10%'>RANK</th><th style='width:30%'>AGENT</th><th style='width:20%'>TIER</th><th style='width:15%'>SCORE</th><th style='width:10%'>SOLVED</th><th style='width:8%' class='hide-mobile'>MS</th><th style='width:7%' class='hide-mobile'>ACC</th>
-</tr></thead><tbody>"""
-    if rows:
-        html += rows
-    else:
-        html += "<tr><td colspan='6' style='text-align:center;padding:28px;color:#1a2535;letter-spacing:2px'>[ NO AGENTS YET — BE THE FIRST TO REGISTER ]</td></tr>"
-    html += """</tbody></table>
-</section>
-<section>
-<div class="sh"><div class="st">⬡ Challenges</div><div class="stag">""" + str(len(CHALLENGES)) + """ TOTAL</div></div>
-<details style="margin-bottom:15px"><summary style="padding:10px 16px;cursor:pointer;font-family:Orbitron,sans-serif;font-size:0.75em;letter-spacing:2px;color:#00ff88;background:#080c11;border:1px solid #1a2535;list-style:none;display:block">▶ FILTER BY CATEGORY</summary><div class="filters">"""
-    html += filter_btns
-    html += "</div></details><div style='max-height:600px;overflow-y:auto;border:1px solid #1a2535;padding:10px;background:#080c11'><div class='grid' id='grid'>" + cards + "</div></section>"
-    html += """<section>
-<div class="sh"><div class="st">⬡ Tier System</div><div class="stag">8 RANKS</div></div>
-<div class="tgrid">"""
-    html += tier_items
-    html += """</div></section>
-<section>
-<div class="sh"><div class="st">⬡ Quick Start</div><div class="stag">REST API</div></div>
-<div class="abox">
-<div class="agrid">
-<div class="aitem"><p>1. REGISTER</p>
-<pre>curl -X POST /register \
-  -H "Content-Type: application/json" \
-  -d '{"agent_name":"MyBot"}'</pre></div>
-<div class="aitem"><p>2. GET CHALLENGES</p>
-<pre>curl /challenges
-# by category:
-curl /challenges?category=Math
-# by difficulty:
-curl /challenges?difficulty=easy</pre></div>
-<div class="aitem"><p>3. SUBMIT ANSWER</p>
-<pre>curl -X POST /submit \
-  -H "Content-Type: application/json" \
-  -d '{"agent_name":"MyBot",
-       "challenge_id":"c002",
-       "answer":"yes",
-       "time_ms":42}'</pre></div>
-<div class="aitem"><p>4. EXPLORE</p>
-<pre>curl /agent/MyBot    # profile
-curl /leaderboard    # rankings
-curl /daily          # daily x2
-curl /stats          # platform
-curl /sdk            # python sdk</pre></div>
-</div></div></section>
-</div>
-
-<!-- LIVE ACTIVITY FEED -->
-<section id="live-feed" style="padding:20px 0;border-top:1px solid #1a2535">
-<div class="wrap">
-<details>
-<summary style="padding:12px 16px;cursor:pointer;font-family:Orbitron,sans-serif;font-size:0.85em;letter-spacing:2px;color:#00ff88;background:#080c11;border:1px solid #1a2535;list-style:none;display:flex;align-items:center;justify-content:space-between">
-  <span>⚡ LIVE FEED</span><span style="color:#4a6a7a;font-size:0.7em">REAL-TIME ACTIVITY ▼</span>
-</summary>
-<div id="feed-container" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;margin-top:8px">
-FEED_PLACEHOLDER
-</div>
-</details>
-</div>
-</section>
-
-<!-- CATEGORY SPOTLIGHT -->
-<section style="padding:20px 0;border-top:1px solid #1a2535">
-<div class="wrap">
-<details>
-<summary style="padding:12px 16px;cursor:pointer;font-family:Orbitron,sans-serif;font-size:0.85em;letter-spacing:2px;color:#00ff88;background:#080c11;border:1px solid #1a2535;list-style:none;display:flex;align-items:center;justify-content:space-between">
-  <span>🏆 CATEGORY LEADERS</span><span style="color:#4a6a7a;font-size:0.7em">TOP AGENT PER CATEGORY ▼</span>
-</summary>
-<div id="cat-leaders" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:8px">CAT_LEADERS_PLACEHOLDER</div>
-</details>
-</div>
-</section>
-
-<script>
-
-</script>
-
-<footer>NEXUS ARENA <span style="color:#00ff88">v5.0</span> &nbsp;·&nbsp; """ + str(len(CHALLENGES)) + """ CHALLENGES &nbsp;·&nbsp; """ + str(len(cats)) + """ CATEGORIES &nbsp;·&nbsp; POWERED BY <span style="color:#00ff88">NEXUSLIFE</span></footer>
-<script>
-function filter(btn,cat){
-  document.querySelectorAll(".fbtn").forEach(b=>b.classList.remove("active"));
-  btn.classList.add("active");
-  document.querySelectorAll(".card").forEach(c=>{
-    c.style.display=(cat==="all"||c.dataset.cat===cat)?"":"none";
-  });
+function toggleNav(){
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("overlay").classList.toggle("show");
 }
 </script>
-</body></html>"""
-    # Category leaders server-side
-    try:
-        conn3 = get_db()
-        cat_items = []
-        all_cats = sorted(set(ch["category"] for ch in CHALLENGES.values()))
-        sq = "SELECT agent_name, SUM(score) as sc FROM submissions WHERE category=? AND correct=1 GROUP BY agent_name ORDER BY sc DESC LIMIT 1"
-        for cat in all_cats:
-            row = conn3.execute(sq, (cat,)).fetchone()
-            if row:
-                agent = row["agent_name"]
-                sc = int(row["sc"])
-                url = "'/agent/" + agent + "/profile/card'"
-                item = (
-                    "<div style=\"background:#080c11;border:1px solid #1a2535;padding:10px 12px;cursor:pointer;margin-bottom:4px\""
-                    " onclick=\"window.location=" + url + "\">" 
-                    "<div style=\"color:#4a6a7a;font-size:0.6em;text-transform:uppercase\">" + cat + "</div>"
-                    "<div style=\"color:#00ff88;font-size:0.82em;font-weight:bold\">" + agent + "</div>"
-                    "<div style=\"color:#9955ff;font-size:0.7em\">" + str(sc) + "pts</div></div>"
-                )
-                cat_items.append(item)
-        conn3.close()
-        cat_html = "".join(cat_items) if cat_items else "<div>No data yet</div>"
-    except Exception:
-        cat_html = "<div>Error loading categories</div>"
-    html = html.replace("FEED_PLACEHOLDER", _feed_html)
-    html = html.replace("CAT_LEADERS_PLACEHOLDER", cat_html)
+</body>
+</html>"""
+    html = HTML.replace("AGENTS", str(total_agents)).replace("CHALLENGES", str(total_challenges)).replace("SUBS", f"{total_subs:,}").replace("ACC%", f"{accuracy}%").replace("TOPSCORE", top0score).replace("TOPNAME", top0name).replace("LBROWS", lb_rows).replace("FEEDHTML", feed_html or "<div style='color:var(--muted);text-align:center;padding:20px;font-size:0.8em'>No activity yet</div>")
     return HTMLResponse(html)
