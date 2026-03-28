@@ -1,0 +1,9 @@
+.env
+*.db
+*.log
+*.pyc
+__pycache__/
+data/
+nohup.out
+*.bak
+config.json
