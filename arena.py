@@ -7341,6 +7341,616 @@ async def gateway_completions(request: Request):
             json=payload)
         return JSONResponse(r.json(), status_code=r.status_code)
 
+# ══════════════════════════════════════════════════════════
+# OUTILS IA INTÉGRÉS
+# ══════════════════════════════════════════════════════════
+
+@app.get("/tools")
+def tools_hub():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Tools — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}
+.wrap{max-width:900px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}
+.logo{font-family:Orbitron,sans-serif;color:#00aaff;font-size:0.85em;letter-spacing:3px}
+.back{color:#4a6a7a;font-size:0.75em;text-decoration:none}
+.title{font-family:Orbitron,sans-serif;font-size:1.1em;color:#fff;margin-bottom:24px;letter-spacing:3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.tool{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px;text-decoration:none;color:inherit;display:block;transition:all 0.2s}
+.tool:hover{transform:translateY(-2px)}
+.tool-icon{font-size:2em;margin-bottom:10px}
+.tool-name{font-family:Orbitron,sans-serif;font-size:0.7em;letter-spacing:2px;margin-bottom:6px}
+.tool-desc{color:#4a6a7a;font-size:0.7em;line-height:1.5}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">🛠️ AI TOOLS</div><a class="back" href="/">← Arena</a></div>
+<div class="title">OUTILS IA INTÉGRÉS</div>
+<div class="grid">
+  <a class="tool" href="/tools/translate" style="border-color:#00aaff">
+    <div class="tool-icon">🌍</div>
+    <div class="tool-name" style="color:#00aaff">TRADUCTEUR</div>
+    <div class="tool-desc">Traduire dans n'importe quelle langue avec le meilleur modèle</div>
+  </a>
+  <a class="tool" href="/tools/summarize" style="border-color:#00ff88">
+    <div class="tool-icon">📝</div>
+    <div class="tool-name" style="color:#00ff88">RÉSUMEUR</div>
+    <div class="tool-desc">Résumer un texte, URL ou document avec l'IA</div>
+  </a>
+  <a class="tool" href="/tools/debug" style="border-color:#ff6b35">
+    <div class="tool-icon">🐛</div>
+    <div class="tool-name" style="color:#ff6b35">DÉBUGGEUR</div>
+    <div class="tool-desc">Analyser et corriger du code automatiquement</div>
+  </a>
+  <a class="tool" href="/tools/write" style="border-color:#9955ff">
+    <div class="tool-icon">✍️</div>
+    <div class="tool-name" style="color:#9955ff">RÉDACTEUR</div>
+    <div class="tool-desc">Générer du contenu professionnel avec l'IA</div>
+  </a>
+  <a class="tool" href="/tools/compare" style="border-color:#ffd700">
+    <div class="tool-icon">⚖️</div>
+    <div class="tool-name" style="color:#ffd700">COMPARATEUR</div>
+    <div class="tool-desc">Comparer deux textes ou codes avec analyse IA</div>
+  </a>
+  <a class="tool" href="/tools/explain" style="border-color:#ff4444">
+    <div class="tool-icon">💡</div>
+    <div class="tool-name" style="color:#ff4444">EXPLIQUEUR</div>
+    <div class="tool-desc">Expliquer n'importe quel concept simplement</div>
+  </a>
+</div>
+</div></body></html>"""
+    return HTMLResponse(html)
+
+@app.get("/tools/{tool_name}")
+def tool_page(tool_name: str):
+    tools = {
+        "translate": ("🌍 TRADUCTEUR IA", "Entrez votre texte et choisissez la langue cible", "Traduire vers...", "Traduire en espagnol : Bonjour le monde"),
+        "summarize": ("📝 RÉSUMEUR IA", "Entrez un texte long à résumer", "Résumer en...", "Résume ce texte en 3 points clés :"),
+        "debug": ("🐛 DÉBUGGEUR IA", "Collez votre code bugué", "Analyser le code", "def hello(: print('world')"),
+        "write": ("✍️ RÉDACTEUR IA", "Décrivez ce que vous voulez rédiger", "Rédiger...", "Rédige un email professionnel pour..."),
+        "compare": ("⚖️ COMPARATEUR IA", "Entrez deux textes à comparer", "Comparer...", "Compare ces deux approches :"),
+        "explain": ("💡 EXPLIQUEUR IA", "Entrez un concept à expliquer", "Expliquer...", "Explique simplement ce qu'est le machine learning"),
+    }
+    if tool_name not in tools:
+        return HTMLResponse("<h1>Tool not found</h1>", status_code=404)
+    
+    title, desc, placeholder, example = tools[tool_name]
+    colors = {"translate":"#00aaff","summarize":"#00ff88","debug":"#ff6b35","write":"#9955ff","compare":"#ffd700","explain":"#ff4444"}
+    color = colors.get(tool_name, "#00ff88")
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:800px;margin:0 auto}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
+.logo{{font-family:Orbitron,sans-serif;color:{color};font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.box{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px;margin-bottom:16px}}
+.label{{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:8px;display:block}}
+textarea,select,input{{width:100%;background:#040812;border:1px solid #1a2535;color:#fff;padding:10px;font-family:'JetBrains Mono',monospace;font-size:0.8em;border-radius:4px;margin-bottom:8px}}
+textarea{{min-height:120px;resize:vertical}}
+.btn{{width:100%;padding:12px;background:{color};border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.75em;font-weight:700;cursor:pointer;border-radius:4px;letter-spacing:2px}}
+.result{{display:none;margin-top:16px;background:#040812;border:1px solid {color};border-radius:6px;padding:16px;font-size:0.8em;line-height:1.7;white-space:pre-wrap}}
+.models{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}}
+.model-btn{{padding:4px 10px;border:1px solid #1a2535;background:none;color:#4a6a7a;cursor:pointer;font-size:0.65em;border-radius:3px;font-family:'JetBrains Mono',monospace}}
+.model-btn.active{{border-color:{color};color:{color}}}
+.loading{{color:{color};font-size:0.75em}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar">
+  <div class="logo">{title}</div>
+  <a class="back" href="/tools">← Outils</a>
+</div>
+<div class="box">
+  <label class="label">MODÈLE IA</label>
+  <div class="models">
+    <button class="model-btn active" data-model="llama-3.3-70b-versatile" data-provider="groq" onclick="selectModel(this)">Llama 70B</button>
+    <button class="model-btn" data-model="moonshotai/kimi-k2-instruct" data-provider="groq" onclick="selectModel(this)">Kimi K2</button>
+    <button class="model-btn" data-model="qwen/qwen3-32b" data-provider="groq" onclick="selectModel(this)">Qwen3 32B</button>
+    <button class="model-btn" data-model="qwen-3-235b-a22b-instruct-2507" data-provider="cerebras" onclick="selectModel(this)">Qwen 235B ⚡</button>
+  </div>
+  <label class="label">VOTRE TEXTE</label>
+  <textarea id="input" placeholder="{placeholder}&#10;&#10;Ex: {example}"></textarea>
+  <button class="btn" onclick="run()">⚡ LANCER</button>
+  <div class="loading" id="loading" style="display:none;margin-top:8px">⏳ Traitement en cours...</div>
+  <div class="result" id="result"></div>
+</div>
+</div>
+<script>
+let selectedModel = 'llama-3.3-70b-versatile';
+let selectedProvider = 'groq';
+
+function selectModel(btn) {{
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedModel = btn.dataset.model;
+  selectedProvider = btn.dataset.provider;
+}}
+
+async function run() {{
+  const input = document.getElementById('input').value.trim();
+  if (!input) return;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+  
+  const r = await fetch('/playground/query', {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{prompt: input, model: selectedModel, provider: selectedProvider}})
+  }}).then(r=>r.json());
+  
+  document.getElementById('loading').style.display = 'none';
+  const result = document.getElementById('result');
+  result.textContent = r.response || r.error || 'Erreur';
+  result.style.display = 'block';
+}}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# EXPORT PDF RAPPORT
+# ══════════════════════════════════════════════════════════
+
+@app.post("/export/pdf")
+async def export_pdf(request: Request):
+    """Générer un rapport PDF depuis les résultats"""
+    body = await request.json()
+    report_type = body.get("type","playground")
+    data = body.get("data",{})
+    
+    # Générer HTML du rapport
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body{{font-family:monospace;padding:30px;background:#fff;color:#000}}
+h1{{color:#000;border-bottom:2px solid #000;padding-bottom:10px}}
+h2{{color:#333;margin-top:20px}}
+.metric{{display:inline-block;margin:5px;padding:5px 10px;border:1px solid #ccc;border-radius:3px;font-size:0.85em}}
+.result{{background:#f5f5f5;padding:10px;margin:10px 0;border-left:3px solid #000}}
+.footer{{margin-top:30px;font-size:0.75em;color:#666;border-top:1px solid #ccc;padding-top:10px}}
+</style></head>
+<body>
+<h1>NexusArena — Rapport {report_type.upper()}</h1>
+<p>Généré le {__import__('datetime').datetime.now().strftime('%d/%m/%Y à %H:%M')}</p>
+<h2>Résultats</h2>"""
+    
+    if report_type == "playground":
+        for model, result in data.get("results",{}).items():
+            html += f"""<div class="result">
+<strong>{model}</strong><br>
+{str(result)[:500]}
+</div>"""
+    elif report_type == "battle":
+        html += f"""<div class="result">
+<strong>Agent A:</strong> {data.get('agent_a','?')} — {data.get('score_a',0):.0f}pts<br>
+<strong>Agent B:</strong> {data.get('agent_b','?')} — {data.get('score_b',0):.0f}pts<br>
+<strong>Gagnant:</strong> {'Agent A' if data.get('score_a',0) > data.get('score_b',0) else 'Agent B'}
+</div>"""
+    elif report_type == "crew":
+        for step in data.get("steps",[]):
+            html += f"""<div class="result">
+<strong>{step.get('role','?').upper()} — {step.get('agent','?')}</strong><br>
+{step.get('output','')[:300]}...
+</div>"""
+    
+    html += f"""<div class="footer">
+NexusArena — AI Benchmark Platform | github.com/Tibs15/NexusArena
+</div></body></html>"""
+    
+    return HTMLResponse(html, headers={
+        "Content-Disposition": f"attachment; filename=nexusarena_{report_type}_report.html"
+    })
+
+# ══════════════════════════════════════════════════════════
+# CREWS PUBLIQUES — COLLABORATION
+# ══════════════════════════════════════════════════════════
+
+@app.get("/crews")
+def crews_page():
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS public_crews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT, description TEXT, owner TEXT,
+        members TEXT DEFAULT '[]',
+        max_members INTEGER DEFAULT 5,
+        status TEXT DEFAULT 'open',
+        mission TEXT DEFAULT '',
+        score REAL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS crew_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        crew_id INTEGER, author TEXT, message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    crews = conn.execute("SELECT * FROM public_crews ORDER BY created_at DESC").fetchall()
+    conn.close()
+    
+    import json as _json
+    cards = ""
+    for c in crews:
+        members = _json.loads(c["members"] or "[]")
+        spots = c["max_members"] - len(members)
+        status_color = "#00ff88" if c["status"] == "open" else "#ff4444"
+        cards += f"""<div style="background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:20px;margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+  <div style="font-family:Orbitron,sans-serif;font-size:0.8em;color:#9955ff">{c["name"]}</div>
+  <span style="color:{status_color};font-size:0.65em;border:1px solid {status_color};padding:2px 8px;border-radius:2px">{c["status"].upper()}</span>
+</div>
+<div style="color:#4a6a7a;font-size:0.75em;margin-bottom:10px">{c["description"]}</div>
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <div style="font-size:0.7em;color:#4a6a7a">👥 {len(members)}/{c["max_members"]} membres · 🏆 {c["score"]:.0f}pts</div>
+  <div style="display:flex;gap:6px">
+    <a href="/crews/{c["id"]}" style="padding:6px 12px;border:1px solid #9955ff;color:#9955ff;font-size:0.65em;text-decoration:none;border-radius:3px">VOIR</a>
+    {'<a href="/crews/'+str(c["id"])+'/join" style="padding:6px 12px;background:#9955ff;color:#fff;font-size:0.65em;text-decoration:none;border-radius:3px">REJOINDRE</a>' if spots > 0 and c["status"] == "open" else ""}
+  </div>
+</div>
+</div>"""
+    
+    if not cards:
+        cards = '<div style="text-align:center;color:#4a6a7a;padding:40px;font-size:0.8em">Aucune crew publique — soyez le premier !</div>'
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crews — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:800px;margin:0 auto}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px;align-items:center}}
+.logo{{font-family:Orbitron,sans-serif;color:#9955ff;font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.create-btn{{padding:10px 20px;background:#9955ff;border:none;color:#fff;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;letter-spacing:2px;text-decoration:none}}
+.modal{{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center}}
+.modal.show{{display:flex}}
+.modal-box{{background:#080d16;border:1px solid #9955ff;border-radius:8px;padding:24px;width:90%;max-width:480px}}
+.label{{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:6px;display:block;margin-top:12px}}
+input,textarea,select{{width:100%;background:#040812;border:1px solid #1a2535;color:#fff;padding:8px;font-family:'JetBrains Mono',monospace;font-size:0.8em;border-radius:4px}}
+.submit{{width:100%;margin-top:12px;padding:10px;background:#9955ff;border:none;color:#fff;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;letter-spacing:2px}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar">
+  <div class="logo">🤝 CREWS PUBLIQUES</div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <a class="back" href="/">← Arena</a>
+    <a class="create-btn" href="#" onclick="document.getElementById('create-modal').classList.add('show')">+ CRÉER</a>
+  </div>
+</div>
+<div style="color:#4a6a7a;font-size:0.78em;margin-bottom:20px">Collaborez avec d'autres utilisateurs et leurs agents IA pour accomplir des missions ensemble.</div>
+{cards}
+</div>
+
+<div class="modal" id="create-modal">
+<div class="modal-box">
+  <div style="font-family:Orbitron,sans-serif;color:#9955ff;font-size:0.8em;margin-bottom:16px">CRÉER UNE CREW</div>
+  <label class="label">NOM DE LA CREW</label>
+  <input type="text" id="crew-name" placeholder="Ma Super Crew">
+  <label class="label">VOTRE PSEUDO</label>
+  <input type="text" id="crew-owner" placeholder="MonPseudo">
+  <label class="label">DESCRIPTION</label>
+  <textarea id="crew-desc" rows="3" placeholder="On cherche des agents spécialisés en..."></textarea>
+  <label class="label">MISSION</label>
+  <textarea id="crew-mission" rows="2" placeholder="Notre objectif est de..."></textarea>
+  <label class="label">MEMBRES MAX</label>
+  <select id="crew-max">
+    <option value="2">2 membres</option>
+    <option value="3">3 membres</option>
+    <option value="5" selected>5 membres</option>
+    <option value="10">10 membres</option>
+  </select>
+  <button class="submit" onclick="createCrew()">CRÉER LA CREW</button>
+  <button onclick="document.getElementById('create-modal').classList.remove('show')" style="width:100%;margin-top:8px;padding:8px;background:none;border:1px solid #4a6a7a;color:#4a6a7a;cursor:pointer;border-radius:4px;font-family:'JetBrains Mono',monospace">Annuler</button>
+</div>
+</div>
+
+<script>
+async function createCrew() {{
+  const r = await fetch('/crews/create', {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{
+      name: document.getElementById('crew-name').value,
+      owner: document.getElementById('crew-owner').value,
+      description: document.getElementById('crew-desc').value,
+      mission: document.getElementById('crew-mission').value,
+      max_members: parseInt(document.getElementById('crew-max').value)
+    }})
+  }}).then(r=>r.json());
+  if (r.id) window.location.href = '/crews/'+r.id;
+  else location.reload();
+}}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+@app.post("/crews/create")
+async def create_crew(request: Request):
+    import json as _json
+    body = await request.json()
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS public_crews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT, description TEXT, owner TEXT,
+        members TEXT DEFAULT '[]', max_members INTEGER DEFAULT 5,
+        status TEXT DEFAULT 'open', mission TEXT DEFAULT '',
+        score REAL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    cursor = conn.execute(
+        "INSERT INTO public_crews (name,description,owner,mission,max_members,members) VALUES (?,?,?,?,?,?)",
+        (body.get("name","Crew"), body.get("description",""), body.get("owner","Anonymous"),
+         body.get("mission",""), body.get("max_members",5), _json.dumps([body.get("owner","Anonymous")])))
+    conn.commit()
+    crew_id = cursor.lastrowid
+    conn.close()
+    return {"ok": True, "id": crew_id}
+
+@app.get("/crews/{crew_id}")
+def crew_detail(crew_id: int):
+    import json as _json
+    conn = get_db()
+    crew = conn.execute("SELECT * FROM public_crews WHERE id=?", (crew_id,)).fetchone()
+    if not crew:
+        conn.close()
+        return HTMLResponse("<h1>Crew not found</h1>", status_code=404)
+    
+    messages = conn.execute(
+        "SELECT * FROM crew_messages WHERE crew_id=? ORDER BY created_at DESC LIMIT 20",
+        (crew_id,)).fetchall()
+    conn.close()
+    
+    members = _json.loads(crew["members"] or "[]")
+    
+    msgs_html = ""
+    for m in reversed(messages):
+        msgs_html += f"""<div style="padding:8px 0;border-bottom:1px solid #0d1117">
+<span style="color:#9955ff;font-size:0.7em">{m["author"]}</span>
+<span style="color:#4a6a7a;font-size:0.65em;margin-left:8px">{str(m["created_at"])[:16]}</span><br>
+<span style="font-size:0.78em">{m["message"]}</span>
+</div>"""
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{crew["name"]} — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
+.wrap{{max-width:800px;margin:0 auto;display:grid;grid-template-columns:1fr 300px;gap:16px}}
+.full{{grid-column:1/-1}}
+.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
+.logo{{font-family:Orbitron,sans-serif;color:#9955ff;font-size:0.85em;letter-spacing:3px}}
+.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
+.box{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:16px}}
+.label{{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:8px;display:block}}
+input,textarea{{width:100%;background:#040812;border:1px solid #1a2535;color:#fff;padding:8px;font-family:'JetBrains Mono',monospace;font-size:0.8em;border-radius:4px}}
+.btn{{width:100%;margin-top:8px;padding:10px;background:#9955ff;border:none;color:#fff;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;letter-spacing:2px}}
+.member{{padding:6px 0;font-size:0.75em;border-bottom:1px solid #0d1117;color:#ccc}}
+</style></head>
+<body>
+<div style="max-width:800px;margin:0 auto">
+<div class="topbar">
+  <div class="logo">🤝 {crew["name"]}</div>
+  <a class="back" href="/crews">← Crews</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:16px">
+  <div>
+    <div class="box" style="margin-bottom:12px">
+      <label class="label">MISSION</label>
+      <div style="color:#ccc;font-size:0.8em;line-height:1.6">{crew["mission"] or "Aucune mission définie"}</div>
+      <div style="margin-top:10px;color:#4a6a7a;font-size:0.7em">Par {crew["owner"]} · {str(crew["created_at"])[:10]}</div>
+    </div>
+    
+    <div class="box">
+      <label class="label">💬 CHAT DE LA CREW</label>
+      <div style="min-height:200px;max-height:300px;overflow-y:auto;margin-bottom:12px">
+        {msgs_html or '<div style="color:#4a6a7a;font-size:0.75em;text-align:center;padding:20px">Aucun message — soyez le premier !</div>'}
+      </div>
+      <input type="text" id="author" placeholder="Votre pseudo" style="margin-bottom:6px">
+      <textarea id="msg" rows="2" placeholder="Votre message..."></textarea>
+      <button class="btn" onclick="sendMsg()">ENVOYER</button>
+    </div>
+  </div>
+  
+  <div>
+    <div class="box" style="margin-bottom:12px">
+      <label class="label">👥 MEMBRES ({len(members)}/{crew["max_members"]})</label>
+      {"".join([f'<div class="member">🤖 {m}</div>' for m in members])}
+      {f'<div style="margin-top:10px"><input type="text" id="join-name" placeholder="Votre pseudo"><button class="btn" onclick="joinCrew()" style="margin-top:6px">REJOINDRE</button></div>' if len(members) < crew["max_members"] else '<div style="color:#ff4444;font-size:0.7em;margin-top:8px">Crew complète</div>'}
+    </div>
+    
+    <div class="box">
+      <label class="label">🚀 LANCER UNE MISSION</label>
+      <div style="color:#4a6a7a;font-size:0.72em;margin-bottom:10px">Utilisez vos agents ensemble sur une mission</div>
+      <a href="/battle/crew" style="display:block;text-align:center;padding:10px;background:#9955ff;color:#fff;text-decoration:none;font-family:Orbitron,sans-serif;font-size:0.65em;border-radius:4px;letter-spacing:2px">⚔️ CREW MISSION</a>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+async function sendMsg() {{
+  const author = document.getElementById('author').value || 'Anonymous';
+  const msg = document.getElementById('msg').value.trim();
+  if (!msg) return;
+  await fetch('/crews/{crew_id}/message', {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{author, message: msg}})
+  }});
+  document.getElementById('msg').value = '';
+  location.reload();
+}}
+
+async function joinCrew() {{
+  const name = document.getElementById('join-name').value.trim();
+  if (!name) return;
+  await fetch('/crews/{crew_id}/join', {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{name}})
+  }});
+  location.reload();
+}}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+@app.post("/crews/{crew_id}/message")
+async def crew_message(crew_id: int, request: Request):
+    body = await request.json()
+    conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS crew_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        crew_id INTEGER, author TEXT, message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    conn.execute("INSERT INTO crew_messages (crew_id,author,message) VALUES (?,?,?)",
+        (crew_id, body.get("author","Anonymous"), body.get("message","")))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+@app.post("/crews/{crew_id}/join")
+async def join_crew(crew_id: int, request: Request):
+    import json as _json
+    body = await request.json()
+    name = body.get("name","Anonymous")
+    conn = get_db()
+    crew = conn.execute("SELECT * FROM public_crews WHERE id=?", (crew_id,)).fetchone()
+    if crew:
+        members = _json.loads(crew["members"] or "[]")
+        if name not in members and len(members) < crew["max_members"]:
+            members.append(name)
+            conn.execute("UPDATE public_crews SET members=? WHERE id=?",
+                (_json.dumps(members), crew_id))
+            conn.commit()
+    conn.close()
+    return {"ok": True}
+
+# ══════════════════════════════════════════════════════════
+# WEBHOOK API UNIVERSEL
+# ══════════════════════════════════════════════════════════
+
+@app.post("/webhook/query")
+async def webhook_query(request: Request):
+    """Endpoint webhook pour intégrer NexusArena dans n'importe quelle app"""
+    import httpx
+    from dotenv import load_dotenv
+    load_dotenv("/data/data/com.termux/files/home/NexusLIFE/.env")
+    
+    body = await request.json()
+    prompt = body.get("prompt", body.get("message", body.get("text","")))
+    model = body.get("model","llama-3.3-70b-versatile")
+    provider = body.get("provider","groq")
+    callback_url = body.get("callback_url","")
+    
+    if not prompt:
+        return {"error": "prompt required"}
+    
+    if provider == "groq":
+        key = os.getenv("GROQ_API_KEY","")
+        url = "https://api.groq.com/openai/v1/chat/completions"
+    elif provider == "cerebras":
+        key = os.getenv("CEREBRAS_API_KEY","")
+        url = "https://api.cerebras.ai/v1/chat/completions"
+    else:
+        key = os.getenv("OPENROUTER_API_KEY","")
+        url = "https://openrouter.ai/api/v1/chat/completions"
+    
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(url,
+            headers={"Authorization": f"Bearer {key}"},
+            json={"model":model,"messages":[{"role":"user","content":prompt}],"max_tokens":500})
+        
+        if r.status_code == 200:
+            response = r.json()["choices"][0]["message"]["content"]
+            result = {"response": response, "model": model, "provider": provider, "ok": True}
+            
+            # Callback si fourni
+            if callback_url:
+                try:
+                    await client.post(callback_url, json=result, timeout=5)
+                except:
+                    pass
+            
+            return result
+        else:
+            return {"error": f"API error {r.status_code}", "ok": False}
+
+@app.get("/webhook/docs")
+def webhook_docs():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Webhook API — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+body{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;padding:20px}
+.wrap{max-width:800px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}
+.logo{font-family:Orbitron,sans-serif;color:#00aaff;font-size:0.85em;letter-spacing:3px}
+.back{color:#4a6a7a;font-size:0.75em;text-decoration:none}
+h2{font-family:Orbitron,sans-serif;font-size:0.8em;color:#00aaff;letter-spacing:2px;margin:24px 0 10px}
+pre{background:#040812;border:1px solid #1a2535;padding:14px;border-radius:6px;color:#00ff88;font-size:0.78em;line-height:1.7;white-space:pre-wrap;overflow-x:auto}
+.endpoint{background:#080d16;border:1px solid #1a2535;border-radius:6px;padding:16px;margin-bottom:12px}
+.method{display:inline-block;padding:2px 8px;background:#00aaff;color:#000;font-size:0.65em;border-radius:2px;font-weight:700;margin-right:8px}
+.path{font-size:0.82em;color:#fff}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><div class="logo">⚡ WEBHOOK API</div><a class="back" href="/">← Arena</a></div>
+
+<h2>ENDPOINT PRINCIPAL</h2>
+<div class="endpoint">
+  <span class="method">POST</span><span class="path">/webhook/query</span>
+  <pre>{
+  "prompt": "Votre question ici",
+  "model": "llama-3.3-70b-versatile",
+  "provider": "groq",
+  "callback_url": "https://votre-app.com/callback"  // optionnel
+}</pre>
+</div>
+
+<h2>RÉPONSE</h2>
+<pre>{
+  "response": "Réponse de l'IA...",
+  "model": "llama-3.3-70b-versatile",
+  "provider": "groq",
+  "ok": true
+}</pre>
+
+<h2>EXEMPLE CURL</h2>
+<pre>curl -X POST https://nexusarena.is-a.dev/webhook/query \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Quelle est la capitale de la France?"}'</pre>
+
+<h2>EXEMPLE PYTHON</h2>
+<pre>import requests
+r = requests.post("https://nexusarena.is-a.dev/webhook/query",
+    json={"prompt": "Hello!", "provider": "cerebras"})
+print(r.json()["response"])</pre>
+
+<h2>MODÈLES DISPONIBLES</h2>
+<pre>GROQ:
+  llama-3.3-70b-versatile (défaut)
+  moonshotai/kimi-k2-instruct
+  qwen/qwen3-32b
+  llama-3.1-8b-instant
+
+CEREBRAS:
+  qwen-3-235b-a22b-instruct-2507
+  llama3.1-8b
+
+OPENROUTER:
+  nvidia/nemotron-3-super-120b-a12b:free
+  google/gemma-3-12b-it:free</pre>
+</div></body></html>"""
+    return HTMLResponse(html)
+
 init_db()
 
 @app.get("/", response_class=HTMLResponse)
@@ -7571,6 +8181,12 @@ footer{text-align:center;padding:25px;color:var(--tx2);border-top:1px solid var(
   </a>
   <a href="/store" style="padding:14px 25px;background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
     🏪 STORE
+  </a>
+  <a href="/tools" style="padding:14px 25px;background:transparent;border:1px solid #00aaff;color:#00aaff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
+    🛠️ TOOLS
+  </a>
+  <a href="/crews" style="padding:14px 25px;background:transparent;border:1px solid #9955ff;color:#9955ff;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
+    🤝 CREWS
   </a>
   <a href="/docs/api" style="padding:14px 25px;background:transparent;border:1px solid #1a2535;color:#4a6a7a;font-family:Orbitron,sans-serif;font-size:0.75em;cursor:pointer;letter-spacing:1px;text-decoration:none;display:inline-flex;align-items:center">
     📖 API DOCS
