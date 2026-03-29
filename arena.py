@@ -830,7 +830,9 @@ CHALLENGES = {
 }
 
 def get_db():
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(DB, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=10000")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -8456,6 +8458,444 @@ async def leaderboard_live():
 # ══════════════════════════════════════════════════════════
 
 
+
+# ══════════════════════════════════════════════════════════
+# CHAT PERSISTANT MULTI-IA
+# ══════════════════════════════════════════════════════════
+
+@app.get("/chat", response_class=HTMLResponse)
+def chat_page():
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusChat — Multi-AI Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* TOPBAR */
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:0.85em;font-weight:600;color:#fff;}
+.logo-mark{width:24px;height:24px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.65em;color:#000;font-weight:700;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:240px 1fr;flex:1;overflow:hidden;}
+
+/* SIDEBAR */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-head{padding:12px;border-bottom:1px solid var(--border);}
+.new-chat-btn{width:100%;padding:8px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:0.78em;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+.sidebar-label{font-family:'IBM Plex Mono',monospace;font-size:0.58em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:10px 12px 4px;}
+.history-list{flex:1;overflow-y:auto;padding:0 8px 8px;}
+.history-item{padding:8px 10px;border-radius:5px;cursor:pointer;font-size:0.78em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all 0.12s;}
+.history-item:hover{background:var(--surface2);color:var(--text);}
+.history-item.active{background:rgba(0,212,255,0.08);color:var(--accent);}
+.history-date{font-size:0.6em;color:var(--muted);padding:4px 10px;}
+
+/* MAIN */
+.chat-main{display:flex;flex-direction:column;overflow:hidden;}
+
+/* MODEL SELECTOR */
+.model-bar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;}
+.model-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:0.78em;font-family:'IBM Plex Mono',monospace;cursor:pointer;flex:1;max-width:300px;}
+.provider-badge{padding:3px 8px;border-radius:3px;font-size:0.65em;font-family:'IBM Plex Mono',monospace;border:1px solid;}
+.temp-slider{display:flex;align-items:center;gap:6px;font-size:0.72em;color:var(--muted);margin-left:auto;}
+.temp-slider input{width:80px;}
+
+/* MESSAGES */
+.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.msg{display:flex;gap:12px;max-width:85%;}
+.msg.user{align-self:flex-end;flex-direction:row-reverse;}
+.msg.assistant{align-self:flex-start;}
+.msg-avatar{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;flex-shrink:0;}
+.msg.user .msg-avatar{background:var(--accent);color:#000;}
+.msg.assistant .msg-avatar{background:var(--surface2);border:1px solid var(--border);color:var(--accent);}
+.msg-content{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:0.84em;line-height:1.6;}
+.msg.user .msg-content{background:rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.2);}
+.msg-model{font-family:'IBM Plex Mono',monospace;font-size:0.62em;color:var(--muted);margin-top:4px;}
+.msg-time{font-size:0.6em;color:var(--muted);margin-top:2px;}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;overflow-x:auto;font-size:0.85em;margin:8px 0;}
+code{font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
+.typing{display:flex;gap:4px;padding:8px 0;}
+.typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:typing 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:0.2s;}
+.typing span:nth-child(3){animation-delay:0.4s;}
+@keyframes typing{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-6px);}}
+
+/* INPUT */
+.input-area{padding:16px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.input-wrap{display:flex;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;transition:border-color 0.15s;}
+.input-wrap:focus-within{border-color:var(--accent);}
+.chat-input{flex:1;background:none;border:none;color:var(--text);font-size:0.88em;font-family:'IBM Plex Sans',sans-serif;resize:none;outline:none;max-height:200px;min-height:24px;}
+.send-btn{padding:6px 14px;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.78em;align-self:flex-end;transition:opacity 0.15s;}
+.send-btn:hover{opacity:0.85;}
+.send-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.input-hint{font-size:0.65em;color:var(--muted);margin-top:6px;text-align:center;}
+
+/* WELCOME */
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px;}
+.welcome-title{font-size:1.4em;font-weight:700;color:#fff;}
+.welcome-title span{color:var(--accent);}
+.welcome-sub{color:var(--muted);font-size:0.85em;text-align:center;max-width:400px;}
+.suggestions{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:500px;}
+.suggestion{padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:0.78em;transition:all 0.12s;}
+.suggestion:hover{border-color:var(--accent);color:var(--accent);}
+.suggestion-title{font-weight:600;margin-bottom:3px;}
+.suggestion-sub{color:var(--muted);font-size:0.9em;}
+
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><div class="logo-mark">NA</div>NexusChat</div>
+  <a class="back" href="/">← Arena</a>
+</div>
+
+<div class="layout">
+
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <button class="new-chat-btn" onclick="newChat()">+ New Chat</button>
+    </div>
+    <div class="sidebar-label">Recent</div>
+    <div class="history-list" id="history-list">
+      <div style="color:var(--muted);font-size:0.75em;padding:10px;text-align:center">No conversations yet</div>
+    </div>
+  </div>
+
+  <div class="chat-main">
+    <div class="model-bar">
+      <select class="model-select" id="model-select" onchange="updateProvider()">
+        <optgroup label="⚡ GROQ">
+          <option value="groq|moonshotai/kimi-k2-instruct">Kimi K2 — Top #1</option>
+          <option value="groq|llama-3.3-70b-versatile" selected>Llama 3.3 70B</option>
+          <option value="groq|openai/gpt-oss-120b">GPT-OSS 120B</option>
+          <option value="groq|qwen/qwen3-32b">Qwen3 32B</option>
+          <option value="groq|meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout</option>
+          <option value="groq|llama-3.1-8b-instant">Llama 3.1 8B ⚡</option>
+          <option value="groq|allam-2-7b">Allam 2 7B</option>
+          <option value="groq|groq/compound">Compound</option>
+        </optgroup>
+        <optgroup label="🔥 CEREBRAS">
+          <option value="cerebras|qwen-3-235b-a22b-instruct-2507">Qwen3 235B ⚡</option>
+          <option value="cerebras|llama3.1-8b">Llama 8B ⚡</option>
+        </optgroup>
+        <optgroup label="✨ GEMINI">
+          <option value="gemini|gemini-2.5-flash">Gemini 2.5 Flash</option>
+          <option value="gemini|gemini-2.0-flash">Gemini 2.0 Flash</option>
+        </optgroup>
+      </select>
+      <span class="provider-badge" id="provider-badge" style="color:#00d4ff;border-color:#00d4ff33;background:#00d4ff11">GROQ</span>
+      <div class="temp-slider">
+        <span>Temp:</span>
+        <input type="range" min="0" max="100" value="70" id="temperature">
+        <span id="temp-val">0.7</span>
+      </div>
+    </div>
+
+    <div id="chat-area">
+      <div class="welcome" id="welcome">
+        <div class="welcome-title">Chat with <span>any AI</span></div>
+        <div class="welcome-sub">Select a model and start chatting. Your conversation history is saved automatically.</div>
+        <div class="suggestions">
+          <div class="suggestion" onclick="suggest(this)">
+            <div class="suggestion-title">💻 Code Review</div>
+            <div class="suggestion-sub">Review my Python code</div>
+          </div>
+          <div class="suggestion" onclick="suggest(this)">
+            <div class="suggestion-title">🧠 Reasoning</div>
+            <div class="suggestion-sub">Solve a complex problem</div>
+          </div>
+          <div class="suggestion" onclick="suggest(this)">
+            <div class="suggestion-title">✍️ Writing</div>
+            <div class="suggestion-sub">Help me write something</div>
+          </div>
+          <div class="suggestion" onclick="suggest(this)">
+            <div class="suggestion-title">📊 Analysis</div>
+            <div class="suggestion-sub">Analyze this data</div>
+          </div>
+        </div>
+      </div>
+      <div class="messages" id="messages" style="display:none"></div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea class="chat-input" id="chat-input" placeholder="Message NexusChat..." rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send ↑</button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let sessionId = Date.now().toString();
+let messages = [];
+let isLoading = false;
+
+function updateProvider() {
+  const val = document.getElementById('model-select').value;
+  const provider = val.split('|')[0];
+  const colors = {groq:'#00d4ff',cerebras:'#ff6b35',gemini:'#4285f4',openrouter:'#9955ff'};
+  const badge = document.getElementById('provider-badge');
+  badge.textContent = provider.toUpperCase();
+  badge.style.color = colors[provider]||'#ccc';
+  badge.style.borderColor = (colors[provider]||'#ccc')+'33';
+  badge.style.background = (colors[provider]||'#ccc')+'11';
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function suggest(el) {
+  document.getElementById('chat-input').value = el.querySelector('.suggestion-sub').textContent;
+  sendMessage();
+}
+
+function newChat() {
+  sessionId = Date.now().toString();
+  messages = [];
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('messages').style.display = 'none';
+  document.getElementById('welcome').style.display = 'flex';
+  document.getElementById('chat-input').value = '';
+  loadHistory();
+}
+
+function addMessage(role, content, model) {
+  const welcome = document.getElementById('welcome');
+  const msgs = document.getElementById('messages');
+  welcome.style.display = 'none';
+  msgs.style.display = 'flex';
+
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+
+  const avatar = role === 'user' ? 'U' : '🤖';
+  const formattedContent = formatContent(content);
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div>
+      <div class="msg-content">${formattedContent}</div>
+      ${model ? `<div class="msg-model">${model}</div>` : ''}
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function formatContent(text) {
+  // Code blocks
+  text = text.replace(/```(\\w*)\\n?([\\s\\S]*?)```/g, '<pre><code>$2</code></pre>');
+  // Inline code
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  text = text.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+  // Newlines
+  text = text.replace(/\\n/g, '<br>');
+  return text;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('messages');
+  document.getElementById('welcome').style.display = 'none';
+  msgs.style.display = 'flex';
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.id = 'typing-indicator';
+  div.innerHTML = '<div class="msg-avatar">🤖</div><div class="msg-content"><div class="typing"><span></span><span></span><span></span></div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if(t) t.remove();
+}
+
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const [provider, model] = document.getElementById('model-select').value.split('|');
+  const temp = document.getElementById('temperature').value / 100;
+
+  input.value = '';
+  input.style.height = 'auto';
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+
+  messages.push({role:'user', content:text});
+  addMessage('user', text, null);
+  showTyping();
+
+  try {
+    const r = await fetch('/chat/send', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        session_id: sessionId,
+        messages: messages,
+        model: model,
+        provider: provider,
+        temperature: temp
+      })
+    });
+
+    const data = await r.json();
+    removeTyping();
+
+    if (data.response) {
+      messages.push({role:'assistant', content:data.response});
+      addMessage('assistant', data.response, data.model || model);
+      saveToHistory(text);
+    } else {
+      addMessage('assistant', '❌ Error: ' + (data.error || 'Unknown error'), model);
+    }
+  } catch(e) {
+    removeTyping();
+    addMessage('assistant', '❌ Network error', model);
+  }
+
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+function saveToHistory(firstMsg) {
+  const list = document.getElementById('history-list');
+  const existing = document.getElementById('hist-' + sessionId);
+  if (!existing) {
+    const item = document.createElement('div');
+    item.className = 'history-item active';
+    item.id = 'hist-' + sessionId;
+    item.textContent = firstMsg.slice(0, 40) + (firstMsg.length > 40 ? '...' : '');
+    item.onclick = () => loadSession(sessionId);
+    list.prepend(item);
+    // Remove "no conversations" message
+    const empty = list.querySelector('[style]');
+    if(empty) empty.remove();
+  }
+}
+
+function loadHistory() {
+  // Reset active states
+  document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
+}
+
+document.getElementById('temperature').addEventListener('input', function() {
+  document.getElementById('temp-val').textContent = (this.value/100).toFixed(1);
+});
+</script>
+</body>
+</html>"""
+    return HTMLResponse(html)
+
+@app.post("/chat/send")
+async def chat_send(request: Request):
+    """Endpoint chat avec historique et bascule auto"""
+    import httpx
+    from dotenv import load_dotenv
+    load_dotenv("/data/data/com.termux/files/home/NexusLIFE/.env")
+    
+    body = await request.json()
+    messages = body.get("messages", [])
+    model = body.get("model", "llama-3.3-70b-versatile")
+    provider = body.get("provider", "groq")
+    temperature = body.get("temperature", 0.7)
+    session_id = body.get("session_id", "")
+    
+    if not messages:
+        return {"error": "No messages"}
+    
+    # Providers à essayer dans l'ordre (bascule auto)
+    providers_fallback = [
+        (provider, model),
+    ]
+    # Ajouter fallbacks si provider principal fail
+    if provider == "groq":
+        providers_fallback.append(("cerebras", "llama3.1-8b"))
+    elif provider == "cerebras":
+        providers_fallback.append(("groq", "llama-3.1-8b-instant"))
+    
+    for prov, mod in providers_fallback:
+        try:
+            if prov == "groq":
+                key = os.getenv("GROQ_API_KEY","")
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                payload = {"model":mod,"messages":messages,"temperature":temperature,"max_tokens":2000}
+                headers = {"Authorization":f"Bearer {key}"}
+            elif prov == "cerebras":
+                key = os.getenv("CEREBRAS_API_KEY","")
+                url = "https://api.cerebras.ai/v1/chat/completions"
+                payload = {"model":mod,"messages":messages,"temperature":temperature,"max_tokens":2000}
+                headers = {"Authorization":f"Bearer {key}"}
+            elif prov == "gemini":
+                key = os.getenv("GEMINI_API_KEY","")
+                prompt = messages[-1]["content"]
+                async with httpx.AsyncClient(timeout=30) as client:
+                    r = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{mod}:generateContent?key={key}",
+                        json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":temperature}})
+                    if r.status_code == 200:
+                        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                        return {"response":text,"model":mod,"provider":prov}
+                    elif r.status_code == 429:
+                        continue
+                    return {"error":f"Gemini error {r.status_code}"}
+                continue
+            else:
+                key = os.getenv("OPENROUTER_API_KEY","")
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                payload = {"model":mod,"messages":messages,"temperature":temperature,"max_tokens":2000}
+                headers = {"Authorization":f"Bearer {key}"}
+            
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.post(url, headers=headers, json=payload)
+                if r.status_code == 200:
+                    content = r.json()["choices"][0]["message"]["content"]
+                    used_model = r.json().get("model", mod)
+                    fallback_note = f" (fallback from {provider})" if prov != provider else ""
+                    return {"response":content,"model":used_model+fallback_note,"provider":prov}
+                elif r.status_code == 429:
+                    print(f"429 on {prov}, trying fallback...")
+                    continue
+                else:
+                    return {"error":f"HTTP {r.status_code}"}
+        except Exception as e:
+            print(f"Error on {prov}: {e}")
+            continue
+    
+    return {"error":"All providers failed or rate limited. Try again in a moment."}
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     conn = get_db()
@@ -8618,6 +9058,7 @@ tr:hover td{background:var(--surface2);}
     <div class="sidebar-section">
       <div class="sidebar-label">Platform</div>
       <a class="nav-item active" href="/"><span class="nav-icon">⬡</span>Overview<span class="nav-badge">Live</span></a>
+      <a class="nav-item" href="/chat"><span class="nav-icon">💬</span>Chat<span class="nav-badge">New</span></a>
       <a class="nav-item" href="/playground"><span class="nav-icon">🧪</span>Playground</a>
       <a class="nav-item" href="/battle"><span class="nav-icon">⚔️</span>Battle</a>
       <a class="nav-item" href="/beat"><span class="nav-icon">🏆</span>Beat the Best</a>
