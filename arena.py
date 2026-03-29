@@ -4238,6 +4238,14 @@ const MODELS = {
     {id:"gemini-2.5-flash", name:"Gemini 2.5 Flash", badge:"Google", fast:true},
     {id:"gemini-2.0-flash", name:"Gemini 2.0 Flash", badge:"Google"},
   ],
+  sambanova: [
+    {id:"DeepSeek-R1-0528", name:"DeepSeek R1", badge:"Reasoning"},
+    {id:"DeepSeek-V3-0324", name:"DeepSeek V3", badge:"SOTA"},
+    {id:"Meta-Llama-3.3-70B-Instruct", name:"Llama 3.3 70B", badge:"SambaNova"},
+    {id:"Qwen3-235B", name:"Qwen3 235B", badge:"235B"},
+    {id:"Llama-4-Maverick-17B-128E-Instruct", name:"Llama 4 Maverick", badge:"New"},
+    {id:"MiniMax-M2.5", name:"MiniMax M2.5", badge:"New"},
+  ],
   openrouter: [
     {id:"nvidia/nemotron-3-super-120b-a12b:free", name:"Nemotron 120B", badge:"Free"},
     {id:"google/gemma-3-12b-it:free", name:"Gemma 3 12B", badge:"Free"},
@@ -4539,6 +4547,9 @@ async def playground_query(request: Request):
         elif provider == "openrouter":
             key = os.getenv("OPENROUTER_API_KEY","")
             url = "https://openrouter.ai/api/v1/chat/completions"
+        elif provider == "sambanova":
+            key = os.getenv("SAMBANOVA_API_KEY","")
+            url = "https://api.sambanova.ai/v1/chat/completions"
         elif provider == "gemini":
             from dotenv import load_dotenv
             load_dotenv("/data/data/com.termux/files/home/NexusLIFE/.env")
@@ -8611,6 +8622,14 @@ code{font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
         <optgroup label="✨ GEMINI">
           <option value="gemini|gemini-2.5-flash">Gemini 2.5 Flash</option>
           <option value="gemini|gemini-2.0-flash">Gemini 2.0 Flash</option>
+        </optgroup>
+        <optgroup label="🧠 SAMBANOVA">
+          <option value="sambanova|DeepSeek-R1-0528">DeepSeek R1 — Reasoning</option>
+          <option value="sambanova|DeepSeek-V3-0324">DeepSeek V3 — SOTA</option>
+          <option value="sambanova|Meta-Llama-3.3-70B-Instruct">Llama 3.3 70B</option>
+          <option value="sambanova|Qwen3-235B">Qwen3 235B</option>
+          <option value="sambanova|Llama-4-Maverick-17B-128E-Instruct">Llama 4 Maverick</option>
+          <option value="sambanova|MiniMax-M2.5">MiniMax M2.5</option>
         </optgroup>
       </select>
       <span class="provider-badge" id="provider-badge" style="color:#00d4ff;border-color:#00d4ff33;background:#00d4ff11">GROQ</span>
