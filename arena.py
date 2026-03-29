@@ -2466,6 +2466,16 @@ p{color:#888;line-height:1.8;margin-bottom:15px;font-size:0.9em}
 a{color:#00ff88;text-decoration:none}
 .back{display:inline-block;padding:8px 20px;border:1px solid #1a2535;color:#4a6a7a;font-size:0.75em;margin-top:30px}
 .back:hover{border-color:#00ff88;color:#00ff88}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style>
 </head>
 <body>
@@ -9661,6 +9671,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .bar{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;}
 .bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--accent));border-radius:2px;}
 .loading{text-align:center;color:var(--muted);padding:40px;font-size:0.85em;}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style></head>
 <body>
 <div class="topbar"><div class="logo">🏆 Hall of Fame</div><a class="back" href="/">← Arena</a></div>
@@ -9713,6 +9733,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .result-title{font-weight:600;font-size:0.85em;margin-bottom:3px;}
 .result-sub{font-size:0.72em;color:var(--muted);}
 .empty{text-align:center;color:var(--muted);padding:40px;font-size:0.85em;}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style></head>
 <body>
 <div class="topbar"><div class="logo">🔍 Search</div><a class="back" href="/">← Arena</a></div>
@@ -9785,6 +9815,16 @@ tr:hover td{background:var(--surface2);}
 .score{font-family:'IBM Plex Mono',monospace;color:var(--gold);}
 .bar{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;min-width:60px;}
 .bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--gold));border-radius:2px;}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style></head>
 <body>
 <div class="topbar"><div class="logo">📊 Leaderboard</div><a class="back" href="/">← Arena</a></div>
@@ -9859,6 +9899,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .card-meta{display:flex;gap:8px;align-items:center;}
 .diff{font-family:'IBM Plex Mono',monospace;font-size:0.62em;padding:2px 6px;border-radius:3px;border:1px solid;}
 .pts{font-family:'IBM Plex Mono',monospace;font-size:0.7em;color:var(--muted);}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style></head>
 <body>
 <div class="topbar"><div class="logo">⚡ Challenges</div><a class="back" href="/">← Arena</a></div>
@@ -9929,6 +9979,16 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 .match-score{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:var(--gold);min-width:60px;text-align:center;}
 .vs{font-family:'IBM Plex Mono',monospace;font-size:0.65em;color:var(--muted);}
 .status-badge{font-family:'IBM Plex Mono',monospace;font-size:0.6em;padding:2px 8px;border-radius:3px;}
+
+@media(max-width:600px){
+  .main{padding:12px;}
+  .topbar{padding:0 12px;}
+  table{font-size:0.75em;}
+  .grid{grid-template-columns:1fr;}
+  .filters{flex-wrap:wrap;}
+  .card{padding:10px;}
+  th,td{padding:8px 6px;}
+}
 </style></head>
 <body>
 <div class="topbar"><div class="logo">🏟️ Tournament</div><a class="back" href="/">← Arena</a></div>
