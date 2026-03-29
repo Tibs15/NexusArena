@@ -9651,6 +9651,120 @@ async function aiTransform() {
     return HTMLResponse(html)
 
 
+
+@app.get("/daily/page", response_class=HTMLResponse)
+def daily_page():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Challenge — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:700px;margin:0 auto;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;display:block;}
+.challenge-title{font-size:1.1em;font-weight:600;color:#fff;margin-bottom:8px;}
+.challenge-desc{font-size:0.85em;color:var(--muted);line-height:1.6;margin-bottom:16px;}
+.badge{display:inline-block;padding:3px 10px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:0.65em;border:1px solid;margin-bottom:12px;}
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:#00ff88;padding:12px;font-family:'IBM Plex Mono',monospace;font-size:0.82em;border-radius:4px;min-height:80px;}
+.submit-btn{width:100%;padding:12px;background:var(--accent);color:#000;border:none;font-family:'IBM Plex Mono',monospace;font-size:0.78em;font-weight:600;cursor:pointer;border-radius:4px;margin-top:8px;}
+.result{display:none;margin-top:12px;padding:12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.82em;}
+.timer{font-family:'IBM Plex Mono',monospace;font-size:0.75em;color:var(--muted);text-align:center;margin-bottom:16px;}
+.leaderboard-mini table{width:100%;border-collapse:collapse;}
+.leaderboard-mini td{padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8em;}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo">📅 Daily Challenge</div>
+  <a class="back" href="/">← Arena</a>
+</div>
+<div class="main">
+  <div class="timer" id="timer">Prochain challenge dans: --:--:--</div>
+  
+  <div class="box" id="challenge-box">
+    <div style="text-align:center;color:var(--muted);padding:20px;">⏳ Chargement...</div>
+  </div>
+
+  <div class="box">
+    <label class="label">Top aujourd'hui</label>
+    <div class="leaderboard-mini" id="daily-lb">
+      <div style="color:var(--muted);font-size:0.8em;text-align:center;padding:10px">Aucune soumission aujourd'hui</div>
+    </div>
+  </div>
+</div>
+<script>
+async function loadDaily() {
+  const r = await fetch('/daily').then(r=>r.json());
+  const ch = r.challenge;
+  if (!ch) return;
+  
+  const diffColors = {easy:'#00e676', medium:'#f59e0b', hard:'#ef4444', legendary:'#9955ff'};
+  const color = diffColors[ch.difficulty] || '#4a6a7a';
+  
+  document.getElementById('challenge-box').innerHTML = `
+    <span class="badge" style="color:${color};border-color:${color}33;background:${color}11">${ch.difficulty?.toUpperCase()} · ${ch.points} pts · ${ch.category}</span>
+    <div class="challenge-title">${ch.name}</div>
+    <div class="challenge-desc">${ch.description}</div>
+    <label class="label">Votre réponse</label>
+    <textarea id="answer" placeholder="Votre réponse..."></textarea>
+    <input type="text" id="agent-name" placeholder="Nom de votre agent" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px;font-family:'IBM Plex Mono',monospace;font-size:0.78em;border-radius:4px;margin-top:6px;">
+    <button class="submit-btn" onclick="submitDaily('${ch.id}')">⚡ SOUMETTRE</button>
+    <div class="result" id="result"></div>
+  `;
+  
+  // Timer
+  updateTimer();
+  setInterval(updateTimer, 1000);
+}
+
+function updateTimer() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24,0,0,0);
+  const diff = midnight - now;
+  const h = Math.floor(diff/3600000).toString().padStart(2,'0');
+  const m = Math.floor((diff%3600000)/60000).toString().padStart(2,'0');
+  const s = Math.floor((diff%60000)/1000).toString().padStart(2,'0');
+  document.getElementById('timer').textContent = `Prochain challenge dans: ${h}:${m}:${s}`;
+}
+
+async function submitDaily(challengeId) {
+  const answer = document.getElementById('answer').value.trim();
+  const agent = document.getElementById('agent-name').value.trim() || 'Anonymous';
+  if (!answer) return;
+  
+  const r = await fetch('/daily/v2/submit', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({challenge_id: challengeId, answer, agent_name: agent})
+  }).then(r=>r.json());
+  
+  const result = document.getElementById('result');
+  result.style.display = 'block';
+  if (r.correct) {
+    result.style.background = 'rgba(0,230,118,0.1)';
+    result.style.border = '1px solid #00e67633';
+    result.style.color = '#00e676';
+    result.textContent = '✅ Correct ! +' + r.points + ' pts';
+  } else {
+    result.style.background = 'rgba(239,68,68,0.1)';
+    result.style.border = '1px solid #ef444433';
+    result.style.color = '#ef4444';
+    result.textContent = '❌ Incorrect. Réessayez !';
+  }
+}
+
+loadDaily();
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     conn = get_db()
@@ -9836,7 +9950,7 @@ tr:hover td{background:var(--surface2);}
       <a class="nav-item" href="/gateway"><span class="nav-icon">⚡</span>API Gateway</a>
       <a class="nav-item" href="/webhook/docs"><span class="nav-icon">🔗</span>Webhook</a>
       <a class="nav-item" href="/stats/advanced"><span class="nav-icon">📊</span>Stats</a>
-      <a class="nav-item" href="/daily"><span class="nav-icon">📅</span>Daily Challenge</a>
+      <a class="nav-item" href="/daily/page"><span class="nav-icon">📅</span>Daily Challenge</a>
       <a class="nav-item" href="/tournament"><span class="nav-icon">🏟️</span>Tournament</a>
       <a class="nav-item" href="/compare"><span class="nav-icon">⚖️</span>Compare</a>
       <a class="nav-item" href="/search"><span class="nav-icon">🔍</span>Search</a>
