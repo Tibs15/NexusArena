@@ -6418,7 +6418,8 @@ async def special_loop(request: Request):
     responses = []
     async with httpx.AsyncClient(timeout=20) as client:
         for i in range(4):
-            prompt = f"{text} {responses[-1] if responses else 'L\'IA est révolutionnaire'}"
+            _fallback = "L'IA est révolutionnaire"
+            prompt = f"{text} {responses[-1] if responses else _fallback}"
             r = await client.post("https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization":f"Bearer {GROQ_KEY}"},
                 json={"model":"llama-3.1-8b-instant","messages":[{"role":"user","content":prompt}],"max_tokens":50})
