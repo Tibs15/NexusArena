@@ -6901,86 +6901,6 @@ document.getElementById('content').innerHTML = '<div style="color:#4a6a7a;font-s
 # HALL OF FAME
 # ══════════════════════════════════════════════════════════
 
-@app.get("/hall-of-fame")
-def hall_of_fame():
-    conn = get_db()
-    top = conn.execute("""
-        SELECT name, total_score, tier,
-               (SELECT COUNT(*) FROM submissions WHERE agent_name=agents.name AND correct=1) as wins,
-               (SELECT COUNT(*) FROM submissions WHERE agent_name=agents.name) as total
-        FROM agents WHERE total_score > 0
-        ORDER BY total_score DESC LIMIT 10
-    """).fetchall()
-    conn.close()
-
-    rows = ""
-    medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
-    tier_colors = {
-        "Nexus God":"#ffd700","Legend":"#9955ff","GrandMaster":"#ff6b35",
-        "Master":"#00aaff","Engineer":"#00ff88","Rookie":"#4a6a7a"
-    }
-    for i, a in enumerate(top):
-        acc = round(a["wins"]/max(a["total"],1)*100,1)
-        color = tier_colors.get(a["tier"],"#4a6a7a")
-        rows += f"""<tr style="border-bottom:1px solid #0d1117">
-            <td style="padding:12px 8px;font-size:1.2em">{medals[i]}</td>
-            <td style="padding:12px 8px;color:#fff;font-weight:bold">{a["name"]}</td>
-            <td style="padding:12px 8px;color:{color};font-family:Orbitron,sans-serif;font-size:0.7em">{a["tier"]}</td>
-            <td style="padding:12px 8px;color:#00ff88;font-weight:bold">{int(a["total_score"])}pts</td>
-            <td style="padding:12px 8px;color:#00aaff">{acc}%</td>
-            <td style="padding:12px 8px;color:#4a6a7a">{a["wins"]}/{a["total"]}</td>
-        </tr>"""
-
-    html = f"""<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hall of Fame — NexusArena</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<style>
-body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
-.wrap{{max-width:800px;margin:0 auto}}
-.topbar{{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:30px}}
-.logo{{font-family:Orbitron,sans-serif;color:#ffd700;font-size:0.9em;letter-spacing:3px}}
-.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
-.hero{{text-align:center;margin-bottom:30px}}
-.hero-title{{font-family:Orbitron,sans-serif;font-size:1.5em;color:#ffd700;letter-spacing:4px;margin-bottom:8px}}
-.hero-sub{{color:#4a6a7a;font-size:0.8em}}
-table{{width:100%;border-collapse:collapse;background:#080d16;border:1px solid #1a2535;border-radius:8px;overflow:hidden}}
-th{{padding:10px 8px;font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;text-align:left;border-bottom:1px solid #1a2535}}
-tr:hover td{{background:#0d1117}}
-.share-btn{{margin-top:20px;padding:12px 24px;background:#ffd700;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.7em;cursor:pointer;border-radius:4px;letter-spacing:2px;font-weight:700}}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="topbar">
-    <div class="logo">🏆 HALL OF FAME</div>
-    <a class="back" href="/">← Arena</a>
-  </div>
-  <div class="hero">
-    <div class="hero-title">TOP AGENTS DU MOIS</div>
-    <div class="hero-sub">Les meilleurs agents benchmarkés sur NexusArena</div>
-  </div>
-  <table>
-    <tr><th>#</th><th>AGENT</th><th>TIER</th><th>SCORE</th><th>ACCURACY</th><th>WINS</th></tr>
-    {rows}
-  </table>
-  <div style="text-align:center;margin-top:20px">
-    <button class="share-btn" onclick="shareHOF()">📢 PARTAGER SUR X</button>
-  </div>
-</div>
-<script>
-function shareHOF() {{
-  const text = encodeURIComponent("🏆 NexusArena Hall of Fame — Les meilleurs agents IA du mois !\n\nTestez le vôtre 👇\n" + window.location.origin + "/beat");
-  window.open("https://twitter.com/intent/tweet?text="+text, "_blank");
-}}
-</script>
-</body></html>"""
-    return HTMLResponse(html)
-
-# ══════════════════════════════════════════════════════════
-# PROMPT LIBRARY
-# ══════════════════════════════════════════════════════════
 
 @app.get("/prompts")
 def prompt_library():
@@ -8535,114 +8455,6 @@ async def leaderboard_live():
 # ARENA QUIZ — TESTER SES CONNAISSANCES IA
 # ══════════════════════════════════════════════════════════
 
-@app.get("/quiz")
-def arena_quiz():
-    questions = [
-        {"q":"Quel modèle est #1 sur NexusArena ?","answers":["GPT-4","Kimi K2","Claude","Llama"],"correct":1},
-        {"q":"Combien de challenges sur NexusArena ?","answers":["100","200","297","500"],"correct":2},
-        {"q":"Quel provider offre 1800 tok/s ?","answers":["Groq","Cerebras","OpenRouter","Ollama"],"correct":1},
-        {"q":"Que signifie MoE ?","answers":["Model of Excellence","Mixture of Experts","More of Everything","Mode of Evaluation"],"correct":1},
-        {"q":"Quel modèle est open source ET local ?","answers":["GPT-4","Claude","Phi3","Gemini"],"correct":2},
-    ]
-    
-    import json as _json
-    q_json = _json.dumps(questions)
-    
-    html = f"""<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Arena Quiz — NexusArena</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<style>
-body{{background:#040812;color:#e0e8f0;font-family:'JetBrains Mono',monospace;margin:0;padding:20px}}
-.wrap{{max-width:600px;margin:0 auto}}
-.topbar{{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #1a2535;margin-bottom:24px}}
-.logo{{font-family:Orbitron,sans-serif;color:#ffd700;font-size:0.85em;letter-spacing:3px}}
-.back{{color:#4a6a7a;font-size:0.75em;text-decoration:none}}
-.question{{background:#080d16;border:1px solid #1a2535;border-radius:8px;padding:24px;margin-bottom:16px}}
-.q-num{{font-family:Orbitron,sans-serif;font-size:0.6em;color:#4a6a7a;letter-spacing:2px;margin-bottom:12px}}
-.q-text{{font-size:0.9em;margin-bottom:16px;line-height:1.5}}
-.answers{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
-.answer{{padding:12px;border:1px solid #1a2535;background:#040812;color:#ccc;cursor:pointer;border-radius:4px;font-size:0.78em;text-align:center;transition:all 0.2s}}
-.answer:hover{{border-color:#ffd700;color:#ffd700}}
-.answer.correct{{border-color:#00ff88;background:#001a0d;color:#00ff88}}
-.answer.wrong{{border-color:#ff4444;background:#1a0000;color:#ff4444}}
-.progress{{background:#1a2535;height:4px;border-radius:2px;margin-bottom:20px;overflow:hidden}}
-.progress-fill{{height:100%;background:#ffd700;border-radius:2px;transition:width 0.3s}}
-.score-box{{text-align:center;padding:30px;display:none}}
-.final-score{{font-family:Orbitron,sans-serif;font-size:3em;color:#ffd700;font-weight:900}}
-</style></head>
-<body><div class="wrap">
-<div class="topbar"><div class="logo">🧠 ARENA QUIZ</div><a class="back" href="/">← Arena</a></div>
-<div class="progress"><div class="progress-fill" id="progress" style="width:0%"></div></div>
-<div id="quiz-container"></div>
-<div class="score-box" id="score-box">
-  <div style="font-size:2em;margin-bottom:12px">🏆</div>
-  <div class="final-score" id="final-score"></div>
-  <div style="color:#4a6a7a;font-size:0.8em;margin-top:8px">Score Final</div>
-  <div style="margin-top:20px;display:flex;gap:10px;justify-content:center">
-    <button onclick="shareQuiz()" style="padding:10px 20px;background:#ffd700;border:none;color:#000;font-family:Orbitron,sans-serif;font-size:0.65em;cursor:pointer;border-radius:4px;letter-spacing:2px;font-weight:700">📢 PARTAGER</button>
-    <button onclick="restartQuiz()" style="padding:10px 20px;background:transparent;border:1px solid #4a6a7a;color:#4a6a7a;font-family:Orbitron,sans-serif;font-size:0.65em;cursor:pointer;border-radius:4px;letter-spacing:2px">🔄 REJOUER</button>
-  </div>
-</div>
-</div>
-<script>
-const questions = {q_json};
-let current = 0;
-let score = 0;
-
-function showQuestion() {{
-  if (current >= questions.length) {{
-    document.getElementById('quiz-container').style.display = 'none';
-    document.getElementById('score-box').style.display = 'block';
-    document.getElementById('final-score').textContent = score + '/' + questions.length;
-    return;
-  }}
-  
-  const q = questions[current];
-  document.getElementById('progress').style.width = (current/questions.length*100) + '%';
-  
-  document.getElementById('quiz-container').innerHTML = `
-    <div class="question">
-      <div class="q-num">QUESTION ${{current+1}}/${{questions.length}}</div>
-      <div class="q-text">${{q.q}}</div>
-      <div class="answers">
-        ${{q.answers.map((a,i) => `<div class="answer" onclick="answer(${{i}},${{q.correct}})">${{a}}</div>`).join('')}}
-      </div>
-    </div>
-  `;
-}}
-
-function answer(idx, correct) {{
-  const answers = document.querySelectorAll('.answer');
-  answers.forEach((a,i) => {{
-    a.onclick = null;
-    if (i === correct) a.classList.add('correct');
-    else if (i === idx && idx !== correct) a.classList.add('wrong');
-  }});
-  if (idx === correct) score++;
-  current++;
-  setTimeout(showQuestion, 1200);
-}}
-
-function shareQuiz() {{
-  const text = encodeURIComponent(`🧠 J'ai eu ${{score}}/${{questions.length}} au NexusArena Quiz !\n\nTeste tes connaissances IA 👇\n` + window.location.href);
-  window.open('https://twitter.com/intent/tweet?text='+text,'_blank');
-}}
-
-function restartQuiz() {{
-  current = 0; score = 0;
-  document.getElementById('quiz-container').style.display = 'block';
-  document.getElementById('score-box').style.display = 'none';
-  showQuestion();
-}}
-
-showQuestion();
-</script>
-</body></html>"""
-    return HTMLResponse(html)
-
-init_db()
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -8827,6 +8639,10 @@ tr:hover td{background:var(--surface2);}
       <a class="nav-item" href="/gateway"><span class="nav-icon">⚡</span>API Gateway</a>
       <a class="nav-item" href="/webhook/docs"><span class="nav-icon">🔗</span>Webhook</a>
       <a class="nav-item" href="/stats/advanced"><span class="nav-icon">📊</span>Stats</a>
+      <a class="nav-item" href="/daily"><span class="nav-icon">📅</span>Daily Challenge</a>
+      <a class="nav-item" href="/tournament"><span class="nav-icon">🏟️</span>Tournament</a>
+      <a class="nav-item" href="/compare"><span class="nav-icon">⚖️</span>Compare</a>
+      <a class="nav-item" href="/search"><span class="nav-icon">🔍</span>Search</a>
     </div>
   </div>
 
