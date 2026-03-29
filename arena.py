@@ -1245,8 +1245,8 @@ def sdk_download():
 def sdk_page():
     """Page HTML du SDK avec instructions"""
     sdk_code = open("/data/data/com.termux/files/home/NexusLIFE/nexusarena_sdk.py").read()
-    next_level = {"Novice":"Explorer","Explorer":"Builder","Builder":"Expert","Expert":"Master","Master":"Légende"}.get(level,"?")
-    bar_pct = min(100, int(points % 500 / 5))
+    # next_level removed
+    # bar_pct removed
     html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
