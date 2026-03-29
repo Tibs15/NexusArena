@@ -9016,6 +9016,641 @@ async def chat_send(request: Request):
     return {"error":"All providers failed or rate limited. Try again in a moment."}
 
 
+
+# ══════════════════════════════════════════════════════════
+# SYSTÈME DE PLUGINS NEXUSARENA
+# ══════════════════════════════════════════════════════════
+
+BUILTIN_PLUGINS = {
+    "github": {
+        "id": "github",
+        "name": "GitHub Analyzer",
+        "description": "Analyser des repos, commits, issues avec IA",
+        "icon": "🐙",
+        "category": "Developer",
+        "endpoints": ["/plugins/github/analyze", "/plugins/github/review"],
+        "active": True
+    },
+    "api_tester": {
+        "id": "api_tester", 
+        "name": "API Tester",
+        "description": "Tester et documenter des APIs avec IA",
+        "icon": "⚡",
+        "category": "Developer",
+        "endpoints": ["/plugins/api/test"],
+        "active": True
+    },
+    "log_analyzer": {
+        "id": "log_analyzer",
+        "name": "Log Analyzer", 
+        "description": "Analyser des logs et détecter des erreurs avec IA",
+        "icon": "🔍",
+        "category": "Developer",
+        "endpoints": ["/plugins/logs/analyze"],
+        "active": True
+    },
+    "db_explorer": {
+        "id": "db_explorer",
+        "name": "DB Explorer",
+        "description": "Interroger des bases de données en langage naturel",
+        "icon": "🗄️",
+        "category": "Developer",
+        "endpoints": ["/plugins/db/query"],
+        "active": True
+    },
+    "code_reviewer": {
+        "id": "code_reviewer",
+        "name": "Code Reviewer",
+        "description": "Review automatique de code avec suggestions",
+        "icon": "👁️",
+        "category": "Developer",
+        "endpoints": ["/plugins/code/review"],
+        "active": True
+    },
+    "doc_generator": {
+        "id": "doc_generator",
+        "name": "Doc Generator",
+        "description": "Générer de la documentation automatiquement",
+        "icon": "📖",
+        "category": "Developer",
+        "endpoints": ["/plugins/docs/generate"],
+        "active": True
+    },
+    "regex_builder": {
+        "id": "regex_builder",
+        "name": "Regex Builder",
+        "description": "Construire et tester des regex avec IA",
+        "icon": "🔤",
+        "category": "Developer",
+        "endpoints": ["/plugins/regex/build"],
+        "active": True
+    },
+    "json_analyzer": {
+        "id": "json_analyzer",
+        "name": "JSON Analyzer",
+        "description": "Analyser et transformer du JSON avec IA",
+        "icon": "{ }",
+        "category": "Developer",
+        "endpoints": ["/plugins/json/analyze"],
+        "active": True
+    },
+}
+
+@app.get("/plugins", response_class=HTMLResponse)
+def plugins_page():
+    cards = ""
+    for pid, plugin in BUILTIN_PLUGINS.items():
+        cards += f'''
+        <a href="/plugins/{pid}" class="plugin-card">
+          <div class="plugin-icon">{plugin["icon"]}</div>
+          <div class="plugin-info">
+            <div class="plugin-name">{plugin["name"]}</div>
+            <div class="plugin-desc">{plugin["description"]}</div>
+          </div>
+          <div class="plugin-badge">{plugin["category"]}</div>
+        </a>'''
+    
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plugins — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+:root{{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}}
+body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;padding:0;}}
+.topbar{{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}}
+.logo{{font-family:'IBM Plex Mono',monospace;font-size:0.85em;font-weight:600;color:#fff;display:flex;align-items:center;gap:8px;}}
+.logo-mark{{width:24px;height:24px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.65em;color:#000;font-weight:700;}}
+.back{{color:var(--muted);font-size:0.78em;text-decoration:none;}}
+.main{{padding:24px;max-width:900px;margin:0 auto;}}
+.hero{{margin-bottom:24px;}}
+.hero-title{{font-family:'IBM Plex Mono',monospace;font-size:1.1em;color:#fff;margin-bottom:6px;}}
+.hero-sub{{font-size:0.82em;color:var(--muted);}}
+.section-title{{font-family:'IBM Plex Mono',monospace;font-size:0.65em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}}
+.plugins-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:24px;}}
+.plugin-card{{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:inherit;transition:all 0.15s;}}
+.plugin-card:hover{{border-color:var(--accent);transform:translateY(-1px);}}
+.plugin-icon{{font-size:1.5em;width:36px;text-align:center;flex-shrink:0;}}
+.plugin-info{{flex:1;overflow:hidden;}}
+.plugin-name{{font-weight:600;font-size:0.85em;margin-bottom:2px;}}
+.plugin-desc{{font-size:0.72em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.plugin-badge{{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--accent);border:1px solid rgba(0,212,255,0.3);padding:2px 6px;border-radius:3px;white-space:nowrap;}}
+.connect-box{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px;}}
+.connect-title{{font-family:'IBM Plex Mono',monospace;font-size:0.7em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}}
+.connect-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}}
+.connector{{padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;text-align:center;cursor:pointer;transition:all 0.15s;text-decoration:none;display:block;}}
+.connector:hover{{border-color:var(--accent);}}
+.connector-icon{{font-size:1.3em;margin-bottom:4px;}}
+.connector-name{{font-size:0.68em;color:var(--muted);}}
+.api-box{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;}}
+pre{{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;color:#00ff88;font-size:0.78em;overflow-x:auto;font-family:'IBM Plex Mono',monospace;line-height:1.6;}}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo"><div class="logo-mark">NA</div>NexusArena Plugins</div>
+  <a class="back" href="/">← Arena</a>
+</div>
+<div class="main">
+  <div class="hero">
+    <div class="hero-title">// Plugin Hub</div>
+    <div class="hero-sub">Connectez vos outils à NexusArena — 40+ modèles IA disponibles instantanément</div>
+  </div>
+
+  <div class="section-title">Outils intégrés</div>
+  <div class="plugins-grid">{cards}</div>
+
+  <div class="connect-box">
+    <div class="connect-title">Connecteurs externes</div>
+    <div class="connect-grid">
+      <a class="connector" href="/webhook/docs">
+        <div class="connector-icon">🔗</div>
+        <div class="connector-name">Webhook</div>
+      </a>
+      <a class="connector" href="/docs/api">
+        <div class="connector-icon">📡</div>
+        <div class="connector-name">REST API</div>
+      </a>
+      <a class="connector" href="/sdk/page">
+        <div class="connector-icon">🐍</div>
+        <div class="connector-name">Python SDK</div>
+      </a>
+      <a class="connector" href="/gateway">
+        <div class="connector-icon">⚡</div>
+        <div class="connector-name">API Gateway</div>
+      </a>
+      <a class="connector" href="#">
+        <div class="connector-icon">💬</div>
+        <div class="connector-name">Discord Bot</div>
+      </a>
+      <a class="connector" href="#">
+        <div class="connector-icon">🤖</div>
+        <div class="connector-name">Telegram</div>
+      </a>
+      <a class="connector" href="#">
+        <div class="connector-icon">🔧</div>
+        <div class="connector-name">VS Code</div>
+      </a>
+      <a class="connector" href="#">
+        <div class="connector-icon">⚙️</div>
+        <div class="connector-name">n8n / Zapier</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="api-box">
+    <div class="connect-title">Branchez votre outil en 3 lignes</div>
+    <pre>curl -X POST https://nexusarena.is-a.dev/webhook/query \
+  -H "Content-Type: application/json" \
+  -d '{{"prompt": "Analyse ce code", "model": "auto"}}'</pre>
+  </div>
+</div>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# PLUGIN: GITHUB ANALYZER
+# ══════════════════════════════════════════════════════════
+
+@app.get("/plugins/github", response_class=HTMLResponse)
+def plugin_github():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHub Analyzer — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:800px;margin:0 auto;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.62em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;display:block;}
+input,textarea,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px;font-family:'IBM Plex Mono',monospace;font-size:0.82em;border-radius:4px;margin-bottom:10px;}
+textarea{min-height:120px;resize:vertical;}
+.btn{width:100%;padding:12px;background:var(--accent);color:#000;border:none;font-family:'IBM Plex Mono',monospace;font-size:0.78em;font-weight:600;cursor:pointer;border-radius:4px;letter-spacing:1px;}
+.result{display:none;margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:16px;font-size:0.82em;line-height:1.7;white-space:pre-wrap;}
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px;}
+.tab{flex:1;padding:6px;text-align:center;font-size:0.75em;cursor:pointer;border-radius:4px;color:var(--muted);}
+.tab.active{background:var(--surface);color:var(--text);}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo">🐙 GitHub Analyzer</div>
+  <a class="back" href="/plugins">← Plugins</a>
+</div>
+<div class="main">
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('analyze')">Analyser un repo</div>
+    <div class="tab" onclick="showTab('review')">Review de code</div>
+    <div class="tab" onclick="showTab('readme')">Générer README</div>
+  </div>
+
+  <div id="tab-analyze" class="box">
+    <label class="label">URL du repo GitHub</label>
+    <input type="text" id="repo-url" placeholder="https://github.com/user/repo">
+    <label class="label">Que voulez-vous savoir ?</label>
+    <textarea id="repo-question" placeholder="Analyse l'architecture de ce projet&#10;Quels sont les points d'amélioration ?&#10;Explique ce que fait ce code..."></textarea>
+    <button class="btn" onclick="analyzeRepo()">🔍 ANALYSER</button>
+    <div class="result" id="result-analyze"></div>
+  </div>
+
+  <div id="tab-review" class="box" style="display:none">
+    <label class="label">Collez votre code</label>
+    <textarea id="code-review" rows="8" placeholder="function hello() {&#10;  console.log('world')&#10;}"></textarea>
+    <label class="label">Type de review</label>
+    <select id="review-type">
+      <option>Review complet (bugs + perf + style)</option>
+      <option>Sécurité uniquement</option>
+      <option>Performance uniquement</option>
+      <option>Best practices</option>
+    </select>
+    <button class="btn" onclick="reviewCode()">👁️ REVIEW</button>
+    <div class="result" id="result-review"></div>
+  </div>
+
+  <div id="tab-readme" class="box" style="display:none">
+    <label class="label">Décrivez votre projet</label>
+    <textarea id="readme-desc" placeholder="Mon projet est une API FastAPI qui...&#10;Technologies: Python, SQLite, Docker&#10;Features: ..."></textarea>
+    <button class="btn" onclick="generateReadme()">📖 GÉNÉRER README</button>
+    <div class="result" id="result-readme"></div>
+  </div>
+</div>
+<script>
+function showTab(name) {
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display='none');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).style.display='block';
+  event.target.classList.add('active');
+}
+
+async function analyzeRepo() {
+  const url = document.getElementById('repo-url').value;
+  const q = document.getElementById('repo-question').value;
+  const prompt = `Analyse ce repo GitHub: ${url}\n\nQuestion: ${q || 'Donne une analyse complète de l\'architecture, des technologies utilisées et des points d\'amélioration.'}`;
+  await callAI(prompt, 'result-analyze');
+}
+
+async function reviewCode() {
+  const code = document.getElementById('code-review').value;
+  const type = document.getElementById('review-type').value;
+  const prompt = `${type}:\n\n\`\`\`\n${code}\n\`\`\`\n\nDonne une analyse détaillée avec des suggestions concrètes.`;
+  await callAI(prompt, 'result-review');
+}
+
+async function generateReadme() {
+  const desc = document.getElementById('readme-desc').value;
+  const prompt = `Génère un README.md professionnel et complet pour ce projet:\n\n${desc}\n\nInclus: badges, description, installation, usage, API docs, contributing.`;
+  await callAI(prompt, 'result-readme');
+}
+
+async function callAI(prompt, resultId) {
+  const result = document.getElementById(resultId);
+  result.style.display = 'block';
+  result.textContent = '⏳ Analyse en cours...';
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({prompt, model:'moonshotai/kimi-k2-instruct', provider:'groq'})
+  }).then(r=>r.json());
+  result.textContent = r.response || r.error || 'Erreur';
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# PLUGIN: API TESTER
+# ══════════════════════════════════════════════════════════
+
+@app.get("/plugins/api_tester", response_class=HTMLResponse)
+def plugin_api_tester():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Tester — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.full{grid-column:1/-1;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;display:block;}
+input,textarea,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px;font-family:'IBM Plex Mono',monospace;font-size:0.8em;border-radius:4px;margin-bottom:8px;}
+.method-bar{display:flex;gap:6px;margin-bottom:10px;}
+.method-btn{padding:6px 12px;border:1px solid var(--border);background:none;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.72em;cursor:pointer;border-radius:4px;}
+.method-btn.active{color:var(--accent);border-color:var(--accent);}
+.send-btn{width:100%;padding:10px;background:var(--accent);color:#000;border:none;font-family:'IBM Plex Mono',monospace;font-size:0.78em;font-weight:600;cursor:pointer;border-radius:4px;}
+.response{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;font-family:'IBM Plex Mono',monospace;font-size:0.75em;line-height:1.6;min-height:200px;white-space:pre-wrap;overflow-y:auto;}
+.status{display:inline-block;padding:2px 8px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:0.7em;margin-bottom:8px;}
+.ai-analyze-btn{width:100%;margin-top:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.7em;cursor:pointer;border-radius:4px;}
+.ai-analyze-btn:hover{border-color:var(--accent);color:var(--accent);}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo">⚡ API Tester</div>
+  <a class="back" href="/plugins">← Plugins</a>
+</div>
+<div class="main">
+  <div class="full box">
+    <div class="method-bar">
+      <button class="method-btn active" onclick="setMethod('GET',this)" style="color:#00e676;border-color:#00e676">GET</button>
+      <button class="method-btn" onclick="setMethod('POST',this)">POST</button>
+      <button class="method-btn" onclick="setMethod('PUT',this)">PUT</button>
+      <button class="method-btn" onclick="setMethod('DELETE',this)" style="color:#ef4444">DELETE</button>
+    </div>
+    <label class="label">URL</label>
+    <input type="text" id="api-url" placeholder="https://api.example.com/endpoint">
+    <label class="label">Headers (JSON)</label>
+    <input type="text" id="api-headers" placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'>
+    <label class="label">Body (JSON)</label>
+    <textarea id="api-body" rows="3" placeholder='{"key": "value"}'></textarea>
+    <button class="send-btn" onclick="sendRequest()">▶ ENVOYER LA REQUÊTE</button>
+  </div>
+
+  <div class="box">
+    <label class="label">Réponse</label>
+    <div id="status-badge"></div>
+    <div class="response" id="response">En attente...</div>
+    <button class="ai-analyze-btn" onclick="analyzeResponse()">🤖 Analyser avec IA</button>
+  </div>
+
+  <div class="box">
+    <label class="label">Analyse IA</label>
+    <div class="response" id="ai-analysis">L'IA analysera la réponse ici...</div>
+  </div>
+</div>
+<script>
+let currentMethod = 'GET';
+let lastResponse = '';
+
+function setMethod(method, btn) {
+  currentMethod = method;
+  document.querySelectorAll('.method-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.color = '';
+    b.style.borderColor = '';
+  });
+  btn.classList.add('active');
+  const colors = {GET:'#00e676',POST:'#00aaff',PUT:'#f59e0b',DELETE:'#ef4444'};
+  btn.style.color = colors[method];
+  btn.style.borderColor = colors[method];
+}
+
+async function sendRequest() {
+  const url = document.getElementById('api-url').value;
+  if (!url) return;
+  
+  document.getElementById('response').textContent = '⏳ Envoi...';
+  
+  try {
+    const headers = JSON.parse(document.getElementById('api-headers').value || '{}');
+    const body = document.getElementById('api-body').value;
+    
+    const opts = {method: currentMethod, headers};
+    if (body && currentMethod !== 'GET') opts.body = body;
+    
+    const t0 = Date.now();
+    const r = await fetch(url, opts);
+    const ms = Date.now()-t0;
+    
+    const text = await r.text();
+    let formatted = text;
+    try { formatted = JSON.stringify(JSON.parse(text), null, 2); } catch(e) {}
+    
+    lastResponse = formatted;
+    
+    const colors = {200:'#00e676',201:'#00e676',400:'#f59e0b',401:'#ef4444',403:'#ef4444',404:'#ef4444',500:'#ef4444'};
+    const color = colors[r.status] || '#ccc';
+    document.getElementById('status-badge').innerHTML = `<span class="status" style="color:${color};border:1px solid ${color}22;background:${color}11">HTTP ${r.status} · ${ms}ms</span>`;
+    document.getElementById('response').textContent = formatted;
+  } catch(e) {
+    document.getElementById('response').textContent = 'Erreur: ' + e.message;
+  }
+}
+
+async function analyzeResponse() {
+  if (!lastResponse) return;
+  document.getElementById('ai-analysis').textContent = '🤖 Analyse...';
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: `Analyse cette réponse API et explique: 1) Ce que contient la réponse 2) Les problèmes éventuels 3) Comment utiliser ces données:\n\n${lastResponse.slice(0,2000)}`,
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  document.getElementById('ai-analysis').textContent = r.response || r.error;
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════
+# PLUGIN: LOG ANALYZER
+# ══════════════════════════════════════════════════════════
+
+@app.get("/plugins/log_analyzer", response_class=HTMLResponse)
+def plugin_log_analyzer():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log Analyzer — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:900px;margin:0 auto;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;display:block;}
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:#00ff88;padding:12px;font-family:'IBM Plex Mono',monospace;font-size:0.75em;border-radius:4px;min-height:200px;resize:vertical;}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.action-btn{padding:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:0.72em;cursor:pointer;border-radius:4px;font-family:'IBM Plex Mono',monospace;transition:all 0.12s;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+.result{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:14px;font-size:0.82em;line-height:1.7;white-space:pre-wrap;min-height:100px;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.stat{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;}
+.stat-val{font-family:'IBM Plex Mono',monospace;font-size:1.2em;color:#fff;}
+.stat-label{font-size:0.62em;color:var(--muted);margin-top:2px;}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo">🔍 Log Analyzer</div>
+  <a class="back" href="/plugins">← Plugins</a>
+</div>
+<div class="main">
+  <div class="box">
+    <label class="label">Collez vos logs</label>
+    <textarea id="logs" placeholder="2024-01-01 12:00:00 ERROR Database connection failed&#10;2024-01-01 12:00:01 INFO Retrying...&#10;2024-01-01 12:00:05 CRITICAL Service down&#10;..." oninput="quickStats()"></textarea>
+  </div>
+  
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="s-total">0</div><div class="stat-label">Total lignes</div></div>
+    <div class="stat"><div class="stat-val" id="s-errors" style="color:#ef4444">0</div><div class="stat-label">Erreurs</div></div>
+    <div class="stat"><div class="stat-val" id="s-warnings" style="color:#f59e0b">0</div><div class="stat-label">Warnings</div></div>
+    <div class="stat"><div class="stat-val" id="s-info" style="color:#00e676">0</div><div class="stat-label">Info</div></div>
+  </div>
+
+  <div class="box">
+    <div class="actions">
+      <button class="action-btn" onclick="analyze('Analyse ces logs et identifie les erreurs critiques, leurs causes probables et les solutions recommandées.')">🚨 Erreurs critiques</button>
+      <button class="action-btn" onclick="analyze('Résume ces logs en 5 points clés. Quels sont les événements importants ?')">📋 Résumé rapide</button>
+      <button class="action-btn" onclick="analyze('Identifie les patterns et anomalies dans ces logs. Y a-t-il des problèmes récurrents ?')">🔎 Détecter patterns</button>
+      <button class="action-btn" onclick="analyze('Analyse les performances dans ces logs. Y a-t-il des goulots d\'étranglement ?')">⚡ Performance</button>
+      <button class="action-btn" onclick="analyze('Analyse la sécurité dans ces logs. Y a-t-il des tentatives d\'intrusion ou anomalies ?')">🔒 Sécurité</button>
+      <button class="action-btn" onclick="analyze('Propose un plan d\'action prioritaire basé sur ces logs.')">📌 Plan d\'action</button>
+    </div>
+    <div class="result" id="result">Choisissez un type d\'analyse ci-dessus...</div>
+  </div>
+</div>
+<script>
+function quickStats() {
+  const logs = document.getElementById('logs').value;
+  const lines = logs.split('\n').filter(l => l.trim());
+  document.getElementById('s-total').textContent = lines.length;
+  document.getElementById('s-errors').textContent = lines.filter(l => /error|critical|fatal/i.test(l)).length;
+  document.getElementById('s-warnings').textContent = lines.filter(l => /warn/i.test(l)).length;
+  document.getElementById('s-info').textContent = lines.filter(l => /info/i.test(l)).length;
+}
+
+async function analyze(prompt) {
+  const logs = document.getElementById('logs').value.trim();
+  if (!logs) return;
+  document.getElementById('result').textContent = '⏳ Analyse...';
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: prompt + '\n\nLogs:\n' + logs.slice(0, 3000),
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  document.getElementById('result').textContent = r.response || r.error;
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+# ══════════════════════════════════════════════════════════  
+# PLUGIN: JSON ANALYZER
+# ══════════════════════════════════════════════════════════
+
+@app.get("/plugins/json_analyzer", response_class=HTMLResponse)
+def plugin_json_analyzer():
+    html = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JSON Analyzer — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.full{grid-column:1/-1;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;display:block;}
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:#00ff88;padding:10px;font-family:'IBM Plex Mono',monospace;font-size:0.78em;border-radius:4px;min-height:180px;resize:vertical;}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.btn{padding:8px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:0.7em;cursor:pointer;border-radius:4px;font-family:'IBM Plex Mono',monospace;}
+.btn:hover{border-color:var(--accent);color:var(--accent);}
+.btn-primary{background:var(--accent);color:#000;border:none;font-weight:600;}
+.output{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;font-family:'IBM Plex Mono',monospace;font-size:0.75em;min-height:180px;white-space:pre-wrap;overflow-y:auto;}
+</style></head>
+<body>
+<div class="topbar">
+  <div class="logo">{ } JSON Analyzer</div>
+  <a class="back" href="/plugins">← Plugins</a>
+</div>
+<div class="main">
+  <div class="box">
+    <label class="label">JSON Input</label>
+    <textarea id="json-input" placeholder='{"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]}'></textarea>
+    <div class="btn-grid">
+      <button class="btn" onclick="formatJSON()">✨ Formatter</button>
+      <button class="btn" onclick="minifyJSON()">🗜️ Minifier</button>
+      <button class="btn" onclick="validateJSON()">✅ Valider</button>
+      <button class="btn" onclick="statsJSON()">📊 Stats</button>
+    </div>
+    <input type="text" id="json-query" placeholder="Demandez à l'IA: extrais les noms, transforme en CSV..." style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px;font-family:'IBM Plex Mono',monospace;font-size:0.78em;border-radius:4px;margin-bottom:6px;">
+    <button class="btn btn-primary" onclick="aiTransform()" style="width:100%;padding:10px;">🤖 IA Transform</button>
+  </div>
+  <div class="box">
+    <label class="label">Output</label>
+    <div class="output" id="output">Le résultat apparaîtra ici...</div>
+  </div>
+</div>
+<script>
+function formatJSON() {
+  try {
+    const data = JSON.parse(document.getElementById('json-input').value);
+    document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+  } catch(e) {
+    document.getElementById('output').textContent = 'Erreur JSON: ' + e.message;
+  }
+}
+
+function minifyJSON() {
+  try {
+    const data = JSON.parse(document.getElementById('json-input').value);
+    document.getElementById('output').textContent = JSON.stringify(data);
+  } catch(e) {
+    document.getElementById('output').textContent = 'Erreur JSON: ' + e.message;
+  }
+}
+
+function validateJSON() {
+  try {
+    JSON.parse(document.getElementById('json-input').value);
+    document.getElementById('output').textContent = '✅ JSON valide !';
+  } catch(e) {
+    document.getElementById('output').textContent = '❌ JSON invalide:\n' + e.message;
+  }
+}
+
+function statsJSON() {
+  try {
+    const data = JSON.parse(document.getElementById('json-input').value);
+    const str = JSON.stringify(data);
+    const keys = (str.match(/"[^"]+"/g)||[]).length;
+    document.getElementById('output').textContent = 
+      `Taille: ${str.length} chars\nType: ${Array.isArray(data) ? 'Array['+data.length+']' : 'Object'}\nClés: ~${keys}\nNiveaux: ${JSON.stringify(data,null,2).split('\n').length} lignes`;
+  } catch(e) {
+    document.getElementById('output').textContent = 'Erreur: ' + e.message;
+  }
+}
+
+async function aiTransform() {
+  const json = document.getElementById('json-input').value.trim();
+  const query = document.getElementById('json-query').value.trim() || 'Analyse et explique ce JSON';
+  if (!json) return;
+  document.getElementById('output').textContent = '🤖 Traitement...';
+  const r = await fetch('/playground/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prompt: query + '\n\nJSON:\n' + json.slice(0,3000),
+      model: 'llama-3.3-70b-versatile', provider: 'groq'
+    })
+  }).then(r=>r.json());
+  document.getElementById('output').textContent = r.response || r.error;
+}
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     conn = get_db()
@@ -9196,6 +9831,7 @@ tr:hover td{background:var(--surface2);}
     <div class="sidebar-section">
       <div class="sidebar-label">Developer</div>
       <a class="nav-item" href="/tools"><span class="nav-icon">🛠️</span>AI Tools</a>
+      <a class="nav-item" href="/plugins"><span class="nav-icon">🔌</span>Plugins<span class="nav-badge">New</span></a>
       <a class="nav-item" href="/sdk/page"><span class="nav-icon">🐍</span>Python SDK</a>
       <a class="nav-item" href="/gateway"><span class="nav-icon">⚡</span>API Gateway</a>
       <a class="nav-item" href="/webhook/docs"><span class="nav-icon">🔗</span>Webhook</a>
