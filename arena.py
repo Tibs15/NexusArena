@@ -10034,9 +10034,11 @@ fetch('/api/tournament').then(r=>r.json()).then(data=>{
 @app.get("/", response_class=HTMLResponse)
 def home():
     conn = get_db()
-    top = conn.execute("SELECT name,total_score,solved,tier FROM agents WHERE total_score > 0 ORDER BY total_score DESC LIMIT 10").fetchall()
+    conn.row_factory = sqlite3.Row
+    top = conn.execute("SELECT name,total_score,solved,tier FROM agents WHERE total_score > 0 ORDER BY total_score DESC LIMIT 50").fetchall()
     total_subs = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
     total_agents = conn.execute("SELECT COUNT(*) FROM agents WHERE total_score > 0").fetchone()[0]
+    nexus_gods = conn.execute("SELECT COUNT(*) FROM agents WHERE tier='Nexus God'").fetchone()[0]
     correct_subs = conn.execute("SELECT COUNT(*) FROM submissions WHERE correct=1").fetchone()[0]
     feed_rows = conn.execute("SELECT agent_name,challenge_id,correct,score FROM submissions ORDER BY submitted_at DESC LIMIT 10").fetchall()
     conn.close()
@@ -10240,7 +10242,7 @@ tr:hover td{background:var(--surface2);}
       <div class="cards">
         <div class="card"><div class="card-val" style="color:var(--gold)">TOPSCORE</div><div class="card-label">Top Score</div><div class="card-sub">TOPNAME</div></div>
         <div class="card"><div class="card-val">52</div><div class="card-label">Categories</div><div class="card-sub">Code · Math · Logic</div></div>
-        <div class="card"><div class="card-val" style="color:var(--gold)">5</div><div class="card-label">Nexus Gods</div><div class="card-sub">Top tier agents</div></div>
+        <div class="card"><div class="card-val" style="color:var(--gold)">NEXUSGODS</div><div class="card-label">Nexus Gods</div><div class="card-sub">Top tier agents</div></div>
         <div class="card"><div class="card-val">40+</div><div class="card-label">AI Models</div><div class="card-sub">Groq · Cerebras · OR</div></div>
       </div>
       <div class="section">
@@ -10303,5 +10305,5 @@ function toggleNav(){
 </script>
 </body>
 </html>"""
-    html = HTML.replace("AGENTS", str(total_agents)).replace("CHALLENGES", str(total_challenges)).replace("SUBS", f"{total_subs:,}").replace("ACC%", f"{accuracy}%").replace("TOPSCORE", top0score).replace("TOPNAME", top0name).replace("LBROWS", lb_rows).replace("FEEDHTML", feed_html or "<div style='color:var(--muted);text-align:center;padding:20px;font-size:0.8em'>No activity yet</div>")
+    html = HTML.replace("AGENTS", str(total_agents)).replace("CHALLENGES", str(total_challenges)).replace("SUBS", f"{total_subs:,}").replace("ACC%", f"{accuracy}%").replace("TOPSCORE", top0score).replace("TOPNAME", top0name).replace("NEXUSGODS", str(nexus_gods)).replace("LBROWS", lb_rows).replace("FEEDHTML", feed_html or "<div style='color:var(--muted);text-align:center;padding:20px;font-size:0.8em'>No activity yet</div>")
     return HTMLResponse(html)
