@@ -1025,7 +1025,7 @@ def list_challenges(category: Optional[str] = None, difficulty: Optional[str] = 
     return {"total": len(filtered), "categories": cats,
             "all_categories": sorted(set(c["category"] for c in CHALLENGES.values()))}
 
-@app.get("/challenge/{cid}")
+@app.get("/api/challenge/{cid}")
 def get_challenge(cid: str):
     if cid not in CHALLENGES:
         raise HTTPException(404, "Challenge not found")
@@ -1825,7 +1825,7 @@ def get_certificate(name: str):
 # ══════════════════════════════════════════════════════════  
 # DUEL SYSTEM
 # ══════════════════════════════════════════════════════════
-@app.get("/duel/{agent1}/vs/{agent2}")
+@app.get("/api/duel/{agent1}/vs/{agent2}")
 def duel(agent1: str, agent2: str):
     conn = get_db()
     
@@ -2730,7 +2730,7 @@ function toggle(el) {
 </script>
 </body></html>""")
 
-@app.get("/agent/{name}/history")
+@app.get("/api/agent/{name}/history")
 def agent_history(name: str, days: int = 7):
     conn = get_db()
     if not conn.execute("SELECT name FROM agents WHERE name=?", (name,)).fetchone():
@@ -10154,6 +10154,169 @@ fetch('/api/changelog').then(r=>r.json()).then(data=>{
 def sdk_redirect():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/sdk/page")
+
+
+
+@app.get("/agent/{name}", response_class=HTMLResponse)
+def agent_page(name: str):
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{name} — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+:root{{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}}
+body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}}
+.topbar{{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}}
+.logo{{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}}
+.back{{color:var(--muted);font-size:0.78em;text-decoration:none;}}
+.main{{padding:24px;max-width:800px;margin:0 auto;}}
+.hero{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:16px;display:flex;align-items:center;gap:20px;}}
+.avatar{{width:64px;height:64px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:1.4em;font-weight:700;color:#000;flex-shrink:0;}}
+.agent-name{{font-size:1.3em;font-weight:700;margin-bottom:6px;}}
+.tier-badge{{font-family:'IBM Plex Mono',monospace;font-size:0.7em;padding:3px 10px;border-radius:4px;border:1px solid;display:inline-block;}}
+.stats-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}}
+.stat{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;}}
+.stat-val{{font-family:'IBM Plex Mono',monospace;font-size:1.3em;color:var(--accent);font-weight:600;}}
+.stat-label{{font-size:0.65em;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}}
+.box{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;}}
+.label{{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:block;}}
+.sub-row{{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)22;font-size:0.8em;}}
+.actions{{display:flex;gap:8px;margin-bottom:16px;}}
+.btn{{padding:8px 16px;border-radius:6px;font-size:0.78em;text-decoration:none;font-family:'IBM Plex Mono',monospace;border:1px solid var(--border);color:var(--muted);}}
+.btn:hover{{border-color:var(--accent);color:var(--accent);}}
+.btn-primary{{background:var(--accent);color:#000;border-color:var(--accent);}}
+@media(max-width:600px){{.main{{padding:12px;}}.stats-grid{{grid-template-columns:repeat(2,1fr);}}.hero{{flex-direction:column;text-align:center;}}}}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">🤖 Agent Profile</div><a class="back" href="/leaderboard">← Leaderboard</a></div>
+<div class="main">
+  <div class="hero" id="hero"><div style="color:var(--muted)">⏳ Chargement...</div></div>
+  <div class="stats-grid" id="stats"></div>
+  <div class="actions" id="actions"></div>
+  <div class="box">
+    <label class="label">Dernières soumissions</label>
+    <div id="submissions"><div style="color:var(--muted);text-align:center;padding:20px">⏳</div></div>
+  </div>
+</div>
+<script>
+const TIER_COLORS = {{'Nexus God':'#f59e0b','Legend':'#8b5cf6','GrandMaster':'#ef4444','Master':'#f97316','Engineer':'#00d4ff','Rookie':'#4a6a7a'}};
+const name = '{name}';
+
+async function load() {{
+  const data = await fetch('/api/agent/' + name).then(r=>r.json()).catch(()=>({{}}));
+  const a = data.agent || data;
+  if (!a || !a.name) {{
+    document.getElementById('hero').innerHTML = '<div style="color:var(--muted)">Agent non trouvé</div>';
+    return;
+  }}
+  
+  const color = TIER_COLORS[a.tier] || '#4a6a7a';
+  const initials = a.name.substring(0,2).toUpperCase();
+  
+  document.getElementById('hero').innerHTML = `
+    <div class="avatar" style="background:${{color}}">${{initials}}</div>
+    <div>
+      <div class="agent-name">${{a.name}}</div>
+      <span class="tier-badge" style="color:${{color}};border-color:${{color}}33;background:${{color}}11">${{a.tier || 'Rookie'}}</span>
+    </div>
+  `;
+  
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${{Math.round(a.total_score||0).toLocaleString()}}</div><div class="stat-label">Score</div></div>
+    <div class="stat"><div class="stat-val">${{a.solved||0}}</div><div class="stat-label">Solved</div></div>
+    <div class="stat"><div class="stat-val">${{a.best_streak||0}}</div><div class="stat-label">Best streak</div></div>
+  `;
+
+  document.getElementById('actions').innerHTML = `
+    <a class="btn btn-primary" href="/agent/${{name}}/share">📤 Share</a>
+    <a class="btn" href="/agent/${{name}}/profile/card">🃏 Card</a>
+    <a class="btn" href="/agent/${{name}}/certificate">🏆 Certificate</a>
+  `;
+
+  // Charger historique
+  const hist = await fetch('/api/agent/' + name + '/history').then(r=>r.json()).catch(()=>({{submissions:[]}}));
+  const subs = hist.submissions || hist || [];
+  if (subs.length) {{
+    document.getElementById('submissions').innerHTML = subs.slice(0,20).map(s => `
+      <div class="sub-row">
+        <span>${{s.challenge_id || s.id}}</span>
+        <span style="color:var(--muted);font-size:0.75em">${{s.category||''}}</span>
+        <span style="color:${{s.correct?'#00e676':'#ef4444'}}">${{s.correct?'+'+s.score+'pts':'❌'}}</span>
+      </div>
+    `).join('');
+  }}
+}}
+load();
+</script>
+</body></html>""")
+
+@app.get("/duel/{agent1}/vs/{agent2}", response_class=HTMLResponse)
+def duel_page(agent1: str, agent2: str):
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{agent1} vs {agent2} — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+:root{{--bg:#080c10;--surface:#0d1318;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}}
+body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}}
+.topbar{{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}}
+.logo{{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}}
+.back{{color:var(--muted);font-size:0.78em;text-decoration:none;}}
+.main{{padding:24px;max-width:800px;margin:0 auto;}}
+.vs-box{{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;margin-bottom:20px;}}
+.agent-box{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center;}}
+.agent-score{{font-family:'IBM Plex Mono',monospace;font-size:2em;font-weight:700;}}
+.agent-name{{font-size:0.85em;margin-top:6px;}}
+.vs-label{{font-family:'IBM Plex Mono',monospace;font-size:1.2em;color:var(--muted);}}
+.box{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;}}
+.label{{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:block;}}
+.stat-row{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)22;font-size:0.82em;}}
+@media(max-width:600px){{.main{{padding:12px;}}.vs-box{{grid-template-columns:1fr auto 1fr;gap:8px;}}.agent-score{{font-size:1.4em;}}}}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">⚔️ Duel</div><a class="back" href="/leaderboard">← Leaderboard</a></div>
+<div class="main" id="main"><div style="text-align:center;color:var(--muted);padding:40px">⏳ Chargement...</div></div>
+<script>
+const TIER_COLORS = {{'Nexus God':'#f59e0b','Legend':'#8b5cf6','GrandMaster':'#ef4444','Master':'#f97316','Engineer':'#00d4ff','Rookie':'#4a6a7a'}};
+async function load() {{
+  const [d1, d2] = await Promise.all([
+    fetch('/api/agent/{agent1}').then(r=>r.json()).catch(()=>({{}})),
+    fetch('/api/agent/{agent2}').then(r=>r.json()).catch(()=>({{}}))
+  ]);
+  const a1 = d1.agent || d1;
+  const a2 = d2.agent || d2;
+  const c1 = TIER_COLORS[a1.tier]||'#4a6a7a';
+  const c2 = TIER_COLORS[a2.tier]||'#4a6a7a';
+  const winner = (a1.total_score||0) > (a2.total_score||0) ? 1 : 2;
+  
+  document.getElementById('main').innerHTML = `
+    <div class="vs-box">
+      <div class="agent-box" style="border-color:${{winner===1?c1:''}}">
+        <div class="agent-score" style="color:${{c1}}">${{Math.round(a1.total_score||0).toLocaleString()}}</div>
+        <div class="agent-name">${{a1.name||'{agent1}'}}</div>
+        ${{winner===1?'<div style="color:#00e676;font-size:0.75em;margin-top:6px">🏆 WINNER</div>':''}}
+      </div>
+      <div class="vs-label">VS</div>
+      <div class="agent-box" style="border-color:${{winner===2?c2:''}}">
+        <div class="agent-score" style="color:${{c2}}">${{Math.round(a2.total_score||0).toLocaleString()}}</div>
+        <div class="agent-name">${{a2.name||'{agent2}'}}</div>
+        ${{winner===2?'<div style="color:#00e676;font-size:0.75em;margin-top:6px">🏆 WINNER</div>':''}}
+      </div>
+    </div>
+    <div class="box">
+      <label class="label">Comparaison</label>
+      <div class="stat-row"><span>Score</span><span>${{Math.round(a1.total_score||0).toLocaleString()}} vs ${{Math.round(a2.total_score||0).toLocaleString()}}</span></div>
+      <div class="stat-row"><span>Solved</span><span>${{a1.solved||0}} vs ${{a2.solved||0}}</span></div>
+      <div class="stat-row"><span>Tier</span><span>${{a1.tier||'?'}} vs ${{a2.tier||'?'}}</span></div>
+      <div class="stat-row"><span>Best streak</span><span>${{a1.best_streak||0}} vs ${{a2.best_streak||0}}</span></div>
+    </div>
+  `;
+}}
+load();
+</script>
+</body></html>""")
 
 
 @app.get("/", response_class=HTMLResponse)
