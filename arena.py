@@ -839,6 +839,24 @@ def get_db():
 def init_db():
     os.makedirs(os.path.dirname(DB), exist_ok=True)
     conn = get_db()
+    conn.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        model TEXT,
+        provider TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        role TEXT,
+        content TEXT,
+        model TEXT,
+        provider TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.commit()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS agents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -8818,6 +8836,39 @@ document.getElementById('temperature').addEventListener('input', function() {
 </html>"""
     return HTMLResponse(html)
 
+@app.get("/chat/history")
+async def chat_history():
+    conn = get_db()
+    sessions = conn.execute("""
+        SELECT id, title, model, provider, updated_at
+        FROM chat_sessions
+        ORDER BY updated_at DESC
+        LIMIT 50
+    """).fetchall()
+    conn.close()
+    return {"sessions": [dict(s) for s in sessions]}
+
+@app.get("/chat/session/{session_id}")
+async def chat_session(session_id: str):
+    conn = get_db()
+    messages = conn.execute("""
+        SELECT role, content, model, provider, created_at
+        FROM chat_messages
+        WHERE session_id=?
+        ORDER BY created_at ASC
+    """, (session_id,)).fetchall()
+    conn.close()
+    return {"messages": [dict(m) for m in messages]}
+
+@app.delete("/chat/session/{session_id}")
+async def delete_chat_session(session_id: str):
+    conn = get_db()
+    conn.execute("DELETE FROM chat_messages WHERE session_id=?", (session_id,))
+    conn.execute("DELETE FROM chat_sessions WHERE id=?", (session_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
 @app.post("/chat/send")
 async def chat_send(request: Request):
     """Endpoint chat avec historique et bascule auto"""
@@ -8883,6 +8934,20 @@ async def chat_send(request: Request):
                     content = r.json()["choices"][0]["message"]["content"]
                     used_model = r.json().get("model", mod)
                     fallback_note = f" (fallback from {provider})" if prov != provider else ""
+                    try:
+                        conn = get_db()
+                        conn.execute("INSERT OR IGNORE INTO chat_sessions (id,title,model,provider) VALUES (?,?,?,?)",
+                            (session_id, messages[0]["content"][:50] if messages else "New chat", mod, prov))
+                        conn.execute("UPDATE chat_sessions SET updated_at=CURRENT_TIMESTAMP WHERE id=?", (session_id,))
+                        if messages:
+                            conn.execute("INSERT INTO chat_messages (session_id,role,content,model,provider) VALUES (?,?,?,?,?)",
+                                (session_id, "user", messages[-1]["content"], mod, prov))
+                        conn.execute("INSERT INTO chat_messages (session_id,role,content,model,provider) VALUES (?,?,?,?,?)",
+                            (session_id, "assistant", content, used_model, prov))
+                        conn.commit()
+                        conn.close()
+                    except Exception as e:
+                        print(f"DB save error: {e}")
                     return {"response":content,"model":used_model+fallback_note,"provider":prov}
                 elif r.status_code == 429:
                     print(f"429 on {prov}, trying fallback...")
