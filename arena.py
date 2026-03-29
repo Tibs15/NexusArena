@@ -1171,7 +1171,7 @@ def leaderboard(limit: int = 100, category: Optional[str] = None):
     conn.close()
     return {"leaderboard": result, "total": len(result)}
 
-@app.get("/agent/{name}")
+@app.get("/api/agent/{name}")
 def agent_profile(name: str):
     conn = get_db()
     a = conn.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
@@ -3440,7 +3440,7 @@ def get_agent_profile(name):
         "website": None,
     }
 
-@app.get("/agent/{name}/profile")
+@app.get("/api/agent/{name}/profile")
 def agent_full_profile(name: str):
     conn = get_db()
     a = conn.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
