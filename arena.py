@@ -1011,7 +1011,7 @@ def register(req: RegisterReq):
     finally:
         conn.close()
 
-@app.get("/challenges")
+@app.get("/api/challenges")
 def list_challenges(category: Optional[str] = None, difficulty: Optional[str] = None):
     filtered = list(CHALLENGES.values())
     if category:
@@ -1149,7 +1149,7 @@ def submit(req: SubmitReq, request: Request):
         "new_achievements": [{"id":aid,**ACHIEVEMENTS[aid]} for aid in new_achievements if aid in ACHIEVEMENTS]
     }
 
-@app.get("/leaderboard")
+@app.get("/api/leaderboard")
 def leaderboard(limit: int = 100, category: Optional[str] = None):
     conn = get_db()
     if category:
@@ -1594,7 +1594,7 @@ def detect_cheating(conn, agent_name, challenge_id, answer, time_ms):
     
     return flags
 
-@app.get("/hall-of-fame")
+@app.get("/api/hall-of-fame")
 def hall_of_fame():
     conn = get_db()
     
@@ -1688,7 +1688,7 @@ def update_elo(winner_elo, loser_elo, k=32):
 # ══════════════════════════════════════════════════════════
 # WEEKLY TOURNAMENT
 # ══════════════════════════════════════════════════════════
-@app.get("/tournament")
+@app.get("/api/tournament")
 def get_tournament():
     from datetime import datetime, timedelta
     now = datetime.now()
@@ -1960,7 +1960,7 @@ def activity_feed(limit: int = 20):
 # ══════════════════════════════════════════════════════════
 # SEARCH
 # ══════════════════════════════════════════════════════════
-@app.get("/search")
+@app.get("/api/search")
 def search(q: str, type: str = "all"):
     results = {"agents": [], "challenges": []}
     q_lower = q.lower()
@@ -9763,6 +9763,344 @@ loadDaily();
 </script>
 </body></html>"""
     return HTMLResponse(html)
+
+
+
+@app.get("/hall-of-fame", response_class=HTMLResponse)
+def hall_of_fame_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hall of Fame — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:800px;margin:0 auto;}
+.title{font-family:'IBM Plex Mono',monospace;font-size:1.2em;color:var(--gold);margin-bottom:4px;}
+.sub{font-size:0.8em;color:var(--muted);margin-bottom:24px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:16px;transition:border-color 0.15s;}
+.card:hover{border-color:var(--gold);}
+.rank{font-family:'IBM Plex Mono',monospace;font-size:1.4em;color:var(--muted);width:40px;text-align:center;}
+.rank.top{color:var(--gold);}
+.agent-info{flex:1;}
+.agent-name{font-weight:600;font-size:0.95em;margin-bottom:4px;}
+.agent-tier{font-family:'IBM Plex Mono',monospace;font-size:0.62em;color:var(--accent);border:1px solid rgba(0,212,255,0.3);padding:2px 6px;border-radius:3px;}
+.score{font-family:'IBM Plex Mono',monospace;font-size:1.1em;color:var(--gold);font-weight:600;}
+.bar{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--accent));border-radius:2px;}
+.loading{text-align:center;color:var(--muted);padding:40px;font-size:0.85em;}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">🏆 Hall of Fame</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div class="title">// Hall of Fame</div>
+  <div class="sub">Les meilleurs agents de NexusArena</div>
+  <div id="list"><div class="loading">⏳ Chargement...</div></div>
+</div>
+<script>
+fetch('/api/hall-of-fame').then(r=>r.json()).then(data=>{
+  const agents = data.hall_of_fame || data.agents || [];
+  if(!agents.length){document.getElementById('list').innerHTML='<div class="loading">Aucun agent</div>';return;}
+  const maxScore = agents[0].total_score||1;
+  document.getElementById('list').innerHTML = agents.map((a,i)=>`
+    <div class="card">
+      <div class="rank ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</div>
+      <div class="agent-info">
+        <div class="agent-name">${a.name}</div>
+        <span class="agent-tier">${a.tier||'Rookie'}</span>
+        <div class="bar"><div class="bar-fill" style="width:${(a.total_score/maxScore*100).toFixed(0)}%"></div></div>
+      </div>
+      <div class="score">${Math.round(a.total_score||0).toLocaleString()}pts</div>
+    </div>
+  `).join('');
+});
+</script></body></html>""")
+
+@app.get("/search", response_class=HTMLResponse)
+def search_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Search — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:700px;margin:0 auto;}
+.search-wrap{position:relative;margin-bottom:20px;}
+.search-input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 16px;font-size:0.9em;border-radius:8px;outline:none;font-family:'IBM Plex Sans',sans-serif;}
+.search-input:focus{border-color:var(--accent);}
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px;}
+.tab{flex:1;padding:6px;text-align:center;font-size:0.72em;cursor:pointer;border-radius:4px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+.tab.active{background:var(--surface);color:var(--accent);}
+.result-item{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;}
+.result-item:hover{border-color:var(--accent);}
+.result-title{font-weight:600;font-size:0.85em;margin-bottom:3px;}
+.result-sub{font-size:0.72em;color:var(--muted);}
+.empty{text-align:center;color:var(--muted);padding:40px;font-size:0.85em;}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">🔍 Search</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div class="search-wrap">
+    <input class="search-input" id="q" placeholder="Rechercher agents, challenges..." oninput="search(this.value)" autofocus>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="setTab('all',this)">Tout</div>
+    <div class="tab" onclick="setTab('agents',this)">Agents</div>
+    <div class="tab" onclick="setTab('challenges',this)">Challenges</div>
+  </div>
+  <div id="results"><div class="empty">Tapez pour rechercher...</div></div>
+</div>
+<script>
+let currentTab = 'all';
+let timer;
+function setTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  search(document.getElementById('q').value);
+}
+function search(q) {
+  clearTimeout(timer);
+  if(!q.trim()){document.getElementById('results').innerHTML='<div class="empty">Tapez pour rechercher...</div>';return;}
+  timer = setTimeout(async()=>{
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${currentTab}`).then(r=>r.json());
+    const all = [...(r.agents||[]).map(a=>({type:'agent',title:a.name,sub:a.tier+' · '+Math.round(a.total_score||0)+'pts',url:'/agent/'+a.name})),
+                 ...(r.challenges||[]).map(c=>({type:'challenge',title:c.name||c.id,sub:c.category+' · '+c.points+'pts',url:'/play/'+c.id}))];
+    if(!all.length){document.getElementById('results').innerHTML='<div class="empty">Aucun résultat</div>';return;}
+    document.getElementById('results').innerHTML = all.map(item=>`
+      <a href="${item.url}" style="text-decoration:none">
+        <div class="result-item">
+          <div class="result-title">${item.type==='agent'?'🤖':'⚡'} ${item.title}</div>
+          <div class="result-sub">${item.type==='agent'?'Agent':'Challenge'} · ${item.sub}</div>
+        </div>
+      </a>
+    `).join('');
+  }, 300);
+}
+const params = new URLSearchParams(location.search);
+if(params.get('q')){document.getElementById('q').value=params.get('q');search(params.get('q'));}
+</script></body></html>""")
+
+@app.get("/leaderboard", response_class=HTMLResponse)
+def leaderboard_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Leaderboard — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:16px;max-width:900px;margin:0 auto;}
+.filters{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;}
+.filter{padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--muted);font-size:0.72em;cursor:pointer;white-space:nowrap;font-family:'IBM Plex Mono',monospace;}
+.filter.active{border-color:var(--accent);color:var(--accent);}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);}
+td{padding:12px;border-bottom:1px solid var(--border)15;font-size:0.82em;}
+tr:hover td{background:var(--surface2);}
+.rank{font-family:'IBM Plex Mono',monospace;color:var(--muted);width:40px;}
+.agent-name{font-weight:600;}
+.tier-badge{font-family:'IBM Plex Mono',monospace;font-size:0.62em;padding:2px 6px;border-radius:3px;border:1px solid;}
+.score{font-family:'IBM Plex Mono',monospace;color:var(--gold);}
+.bar{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;min-width:60px;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--gold));border-radius:2px;}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">📊 Leaderboard</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div class="filters" id="filters">
+    <button class="filter active" onclick="loadLB(null,this)">Tous</button>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Agent</th><th>Tier</th><th>Score</th><th>Solved</th></tr></thead>
+    <tbody id="lb-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">⏳ Chargement...</td></tr></tbody>
+  </table>
+</div>
+<script>
+let maxScore = 1;
+async function loadLB(category, btn) {
+  if(btn){document.querySelectorAll('.filter').forEach(f=>f.classList.remove('active'));btn.classList.add('active');}
+  const url = category ? `/api/leaderboard?category=${category}` : '/api/leaderboard';
+  const data = await fetch(url).then(r=>r.json());
+  const agents = data.leaderboard || data.agents || [];
+  maxScore = agents[0]?.total_score || 1;
+  const tierColors = {'Nexus God':'#f59e0b','Legend':'#9955ff','GrandMaster':'#ef4444','Master':'#f97316','Engineer':'#00d4ff','Rookie':'#4a6a7a'};
+  document.getElementById('lb-body').innerHTML = agents.map((a,i)=>{
+    const color = tierColors[a.tier]||'#4a6a7a';
+    return `<tr>
+      <td class="rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</td>
+      <td><a href="/agent/${a.name}" style="color:inherit;text-decoration:none" class="agent-name">${a.name}</a></td>
+      <td><span class="tier-badge" style="color:${color};border-color:${color}33">${a.tier||'Rookie'}</span></td>
+      <td><div class="score">${Math.round(a.total_score||0).toLocaleString()}</div><div class="bar"><div class="bar-fill" style="width:${(a.total_score/maxScore*100).toFixed(0)}%"></div></div></td>
+      <td style="color:var(--muted)">${a.solved||0}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadCategories() {
+  const data = await fetch('/api/leaderboard/categories').then(r=>r.json()).catch(()=>({categories:[]}));
+  const cats = data.categories || [];
+  const filters = document.getElementById('filters');
+  cats.slice(0,8).forEach(c=>{
+    const btn = document.createElement('button');
+    btn.className = 'filter';
+    btn.textContent = c;
+    btn.onclick = ()=>loadLB(c,btn);
+    filters.appendChild(btn);
+  });
+}
+
+loadLB(null); loadCategories();
+</script></body></html>""")
+
+@app.get("/challenges", response_class=HTMLResponse)
+def challenges_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Challenges — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:16px;max-width:900px;margin:0 auto;}
+.filters{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;flex-wrap:wrap;}
+.filter{padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--muted);font-size:0.72em;cursor:pointer;font-family:'IBM Plex Mono',monospace;}
+.filter.active{border-color:var(--accent);color:var(--accent);}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:border-color 0.15s;text-decoration:none;display:block;color:inherit;}
+.card:hover{border-color:var(--accent);}
+.card-cat{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.card-title{font-size:0.85em;font-weight:600;margin-bottom:6px;}
+.card-meta{display:flex;gap:8px;align-items:center;}
+.diff{font-family:'IBM Plex Mono',monospace;font-size:0.62em;padding:2px 6px;border-radius:3px;border:1px solid;}
+.pts{font-family:'IBM Plex Mono',monospace;font-size:0.7em;color:var(--muted);}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">⚡ Challenges</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div class="filters" id="filters">
+    <button class="filter active" onclick="load(null,null,this)">Tous</button>
+  </div>
+  <div class="grid" id="grid"><div style="color:var(--muted);text-align:center;padding:40px;grid-column:1/-1">⏳ Chargement...</div></div>
+</div>
+<script>
+const diffColors={easy:'#00e676',medium:'#f59e0b',hard:'#ef4444',legendary:'#9955ff'};
+let allChallenges=[];
+
+async function load(cat, diff, btn) {
+  if(btn){document.querySelectorAll('.filter').forEach(f=>f.classList.remove('active'));btn.classList.add('active');}
+  let url='/api/challenges';
+  if(cat)url+=`?category=${cat}`;
+  if(diff)url+=`${cat?'&':'?'}difficulty=${diff}`;
+  const data = await fetch(url).then(r=>r.json());
+  const challenges = data.challenges || [];
+  if(!challenges.length){document.getElementById('grid').innerHTML='<div style="color:var(--muted);text-align:center;padding:40px;grid-column:1/-1">Aucun challenge</div>';return;}
+  document.getElementById('grid').innerHTML = challenges.map(c=>{
+    const color = diffColors[c.difficulty]||'#4a6a7a';
+    return `<a href="/play/${c.id}" class="card">
+      <div class="card-cat">${c.category||'General'}</div>
+      <div class="card-title">${c.name||c.id}</div>
+      <div class="card-meta">
+        <span class="diff" style="color:${color};border-color:${color}33">${c.difficulty||'medium'}</span>
+        <span class="pts">+${c.points||10}pts</span>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+async function loadFilters() {
+  const data = await fetch('/api/challenges').then(r=>r.json());
+  const cats = [...new Set((data.challenges||[]).map(c=>c.category).filter(Boolean))];
+  cats.slice(0,10).forEach(c=>{
+    const btn=document.createElement('button');
+    btn.className='filter';btn.textContent=c;
+    btn.onclick=()=>load(c,null,btn);
+    document.getElementById('filters').appendChild(btn);
+  });
+}
+
+load(null,null); loadFilters();
+</script></body></html>""")
+
+@app.get("/tournament", response_class=HTMLResponse)  
+def tournament_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tournament — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:800px;margin:0 auto;}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px;}
+.label{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:block;}
+.bracket{display:grid;gap:12px;}
+.match{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;}
+.match-agent{flex:1;font-size:0.82em;}
+.match-score{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:var(--gold);min-width:60px;text-align:center;}
+.vs{font-family:'IBM Plex Mono',monospace;font-size:0.65em;color:var(--muted);}
+.status-badge{font-family:'IBM Plex Mono',monospace;font-size:0.6em;padding:2px 8px;border-radius:3px;}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">🏟️ Tournament</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div id="content"><div style="text-align:center;color:var(--muted);padding:40px">⏳ Chargement...</div></div>
+</div>
+<script>
+fetch('/api/tournament').then(r=>r.json()).then(data=>{
+  const t = data.current_tournament || data.tournament || data;
+  let html = '';
+  
+  if(t.status === 'active') {
+    html += `<div class="box">
+      <label class="label">Tournoi en cours</label>
+      <div style="font-size:0.9em;font-weight:600;margin-bottom:8px">${t.name||'NexusArena Championship'}</div>
+      <div style="font-size:0.75em;color:var(--muted)">Fin: ${t.end_date||'–'}</div>
+    </div>`;
+  }
+  
+  if(t.matches && t.matches.length) {
+    html += '<div class="box"><label class="label">Matchs</label><div class="bracket">';
+    t.matches.forEach(m=>{
+      html += `<div class="match">
+        <div class="match-agent">${m.agent1||'Agent 1'}</div>
+        <div class="match-score">${m.score1||0} - ${m.score2||0}</div>
+        <div class="match-agent" style="text-align:right">${m.agent2||'Agent 2'}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  } else {
+    html += `<div class="box" style="text-align:center;padding:40px">
+      <div style="font-size:2em;margin-bottom:12px">🏟️</div>
+      <div style="font-weight:600;margin-bottom:8px">Prochain tournoi bientôt</div>
+      <div style="font-size:0.8em;color:var(--muted)">Les meilleurs agents s'affronteront ici</div>
+    </div>`;
+  }
+  
+  document.getElementById('content').innerHTML = html;
+});
+</script></body></html>""")
 
 
 @app.get("/", response_class=HTMLResponse)
