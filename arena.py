@@ -1191,8 +1191,8 @@ def agent_profile(name: str):
             "history": [dict(h) for h in hist],
             "categories": [dict(c) for c in cats]}
 
-@app.get("/stats")
-def stats():
+@app.get("/api/stats")
+def stats_api():
     conn = get_db()
     total_subs = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
     total_agents = conn.execute("SELECT COUNT(*) FROM agents").fetchone()[0]
@@ -1404,7 +1404,7 @@ def agent_share(name: str):
     recent = ""
     for h in hist[:20]:
         icon = "✅" if h["correct"] else "❌"
-        ms_color = "#00ff88" if h["time_ms"] < 500 else "#fbbf24" if h["time_ms"] < 2000 else "#f87171"
+        ms_color = "#00ff88" if (h["time_ms"] or 0) < 500 else "#fbbf24" if (h["time_ms"] or 0) < 2000 else "#f87171"
         recent += f'''<tr>
             <td>{icon}</td>
             <td style="color:#aaa;font-size:0.8em">{h["challenge_id"]}</td>
@@ -1925,7 +1925,7 @@ body{{background:#030507;font-family:monospace;padding:10px}}
 # ══════════════════════════════════════════════════════════
 # ACTIVITY FEED
 # ══════════════════════════════════════════════════════════
-@app.get("/feed")
+@app.get("/api/feed")
 def activity_feed(limit: int = 20):
     conn = get_db()
     rows = conn.execute("""
@@ -2544,8 +2544,8 @@ def robots():
         media_type="text/plain"
     )
 
-@app.get("/changelog")
-def changelog():
+@app.get("/api/changelog")
+def changelog_api():
     return {
         "changelog": [
             {"version":"4.0","date":"2026-03-20","changes":[
@@ -2617,7 +2617,7 @@ def api_docs():
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--text:#e2e8f0;--muted:#4a6a7a;}
-body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;margin:0;padding:0;width:100%;}
 .topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
 .logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
 .back{color:var(--muted);font-size:0.78em;text-decoration:none;}
@@ -8261,7 +8261,9 @@ def user_profile(username: str):
     )""")
     
     # Créer si inexistant
-    conn.execute("INSERT OR IGNORE INTO user_reputation (username) VALUES (?)", (username,))
+    try:
+        conn.execute("INSERT OR IGNORE INTO user_reputation (username) VALUES (?)", (username,))
+    except: pass
     conn.commit()
     
     user = conn.execute("SELECT * FROM user_reputation WHERE username=?", (username,)).fetchone()
@@ -8273,9 +8275,11 @@ def user_profile(username: str):
     
     # Calculer le niveau
     points = (prompts * 10) + (crews * 20) + (votes * 5)
-    conn.execute("UPDATE user_reputation SET points=?, contributions=? WHERE username=?",
-        (points, prompts+crews+votes, username))
-    conn.commit()
+    try:
+        conn.execute("UPDATE user_reputation SET points=?, contributions=? WHERE username=?",
+            (points, prompts+crews+votes, username))
+        conn.commit()
+    except: pass
     conn.close()
     
     level = "Novice" if points < 50 else "Explorer" if points < 200 else "Builder" if points < 500 else "Expert" if points < 1000 else "Master"
@@ -10031,6 +10035,127 @@ fetch('/api/tournament').then(r=>r.json()).then(data=>{
 </script></body></html>""")
 
 
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats_page():
+    conn = get_db()
+    total_subs = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0]
+    total_agents = conn.execute("SELECT COUNT(*) FROM agents WHERE total_score > 0").fetchone()[0]
+    correct = conn.execute("SELECT COUNT(*) FROM submissions WHERE correct=1").fetchone()[0]
+    accuracy = round(correct/max(total_subs,1)*100,1)
+    cats = conn.execute("SELECT category, COUNT(*) as c FROM submissions WHERE category!='' GROUP BY category ORDER BY c DESC LIMIT 10").fetchall()
+    conn.close()
+    cat_rows = "".join([f'<tr><td>{r["category"]}</td><td style="color:var(--accent)">{r["c"]}</td></tr>' for r in cats])
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stats — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+:root{{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}}
+body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}}
+.topbar{{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}}
+.logo{{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}}
+.back{{color:var(--muted);font-size:0.78em;text-decoration:none;}}
+.main{{padding:24px;max-width:800px;margin:0 auto;}}
+.grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}}
+.card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}}
+.card-val{{font-family:'IBM Plex Mono',monospace;font-size:1.6em;font-weight:600;color:var(--accent);}}
+.card-label{{font-size:0.72em;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}}
+.box{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;}}
+.label{{font-family:'IBM Plex Mono',monospace;font-size:0.6em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:block;}}
+table{{width:100%;border-collapse:collapse;}}
+td{{padding:8px 0;border-bottom:1px solid var(--border)15;font-size:0.82em;}}
+@media(max-width:600px){{.main{{padding:12px;}}.grid{{grid-template-columns:1fr;}}}}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">📊 Stats</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
+  <div class="grid">
+    <div class="card"><div class="card-val">{total_subs:,}</div><div class="card-label">Soumissions</div></div>
+    <div class="card"><div class="card-val">{total_agents}</div><div class="card-label">Agents actifs</div></div>
+    <div class="card"><div class="card-val">{accuracy}%</div><div class="card-label">Précision moy.</div></div>
+    <div class="card"><div class="card-val">297</div><div class="card-label">Challenges</div></div>
+  </div>
+  <div class="box">
+    <label class="label">Top catégories</label>
+    <table><tbody>{cat_rows}</tbody></table>
+  </div>
+</div></body></html>""")
+
+@app.get("/feed", response_class=HTMLResponse)
+def feed_page():
+    conn = get_db()
+    rows = conn.execute("""SELECT agent_name, challenge_id, correct, score, category, submitted_at
+        FROM submissions ORDER BY submitted_at DESC LIMIT 50""").fetchall()
+    conn.close()
+    items = ""
+    for r in rows:
+        icon = "✅" if r["correct"] else "❌"
+        color = "#00e676" if r["correct"] else "#ef4444"
+        items += f'<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center"><span style="font-size:1.1em">{icon}</span><div><div style="font-size:0.82em;font-weight:600">{r["agent_name"]}</div><div style="font-size:0.72em;color:var(--muted)">{r["challenge_id"]} · {r["category"] or "General"}</div></div><div style="margin-left:auto;font-family:IBM Plex Mono,monospace;font-size:0.78em;color:{color}">+{r["score"]}pts</div></div>'
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Feed — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+:root{{--bg:#080c10;--surface:#0d1318;--border:#1a2535;--accent:#00d4ff;--text:#e2e8f0;--muted:#4a6a7a;}}
+body{{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}}
+.topbar{{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}}
+.logo{{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}}
+.back{{color:var(--muted);font-size:0.78em;text-decoration:none;}}
+.main{{padding:16px;max-width:700px;margin:0 auto;}}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">⚡ Live Feed</div><a class="back" href="/">← Arena</a></div>
+<div class="main">{items}</div>
+</body></html>""")
+
+@app.get("/changelog", response_class=HTMLResponse)
+def changelog_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Changelog — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:700px;margin:0 auto;}
+.entry{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;}
+.version{font-family:'IBM Plex Mono',monospace;font-size:0.75em;color:var(--accent);margin-bottom:4px;}
+.date{font-size:0.7em;color:var(--muted);margin-bottom:10px;}
+.item{font-size:0.82em;padding:4px 0;color:var(--text);}
+.item::before{content:"→ ";color:var(--green);}
+@media(max-width:600px){.main{padding:12px;}}
+</style></head>
+<body>
+<div class="topbar"><div class="logo">📋 Changelog</div><a class="back" href="/">← Arena</a></div>
+<div class="main" id="log"><div style="text-align:center;color:var(--muted);padding:40px">⏳ Chargement...</div></div>
+<script>
+fetch('/api/changelog').then(r=>r.json()).then(data=>{
+  const entries = data.changelog || [];
+  document.getElementById('log').innerHTML = entries.map(e=>`
+    <div class="entry">
+      <div class="version">v${e.version}</div>
+      <div class="date">${e.date}</div>
+      ${(e.changes||[]).map(c=>`<div class="item">${c}</div>`).join('')}
+    </div>
+  `).join('') || '<div style="text-align:center;color:var(--muted);padding:20px">Aucun changelog</div>';
+});
+</script>
+</body></html>""")
+
+@app.get("/sdk", response_class=HTMLResponse)
+def sdk_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/sdk/page")
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     conn = get_db()
@@ -10079,10 +10204,10 @@ def home():
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--gold:#f59e0b;--text:#e2e8f0;--muted:#4a6a7a;}
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
-.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
 .logo{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:0.85em;font-weight:600;color:#fff;}
 .logo-mark{width:24px;height:24px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.65em;color:#000;font-weight:700;}
-.topbar-tabs{display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px;}
+.topbar-tabs{display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px;flex:1;margin:0 12px;}
 .tab{padding:4px 12px;font-size:0.75em;color:var(--muted);border-radius:4px;text-decoration:none;font-weight:500;}
 .tab.active{background:var(--surface);color:var(--text);}
 .live-badge{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:0.68em;color:var(--green);}
@@ -10155,8 +10280,10 @@ tr:hover td{background:var(--surface2);}
 .fi-score{font-family:'IBM Plex Mono',monospace;font-size:0.7em;font-weight:500;white-space:nowrap;}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:150;}
 @media(max-width:800px){
+  body{overflow-x:hidden;}
   .hamburger{display:flex!important;}
   .topbar-tabs{display:none!important;}
+  .topbar .btn-test{margin-left:auto;}
   .page{grid-template-columns:1fr!important;height:auto!important;}
   .sidebar{display:none;position:fixed;left:0;top:48px;height:calc(100vh - 48px);z-index:200;width:220px!important;overflow-y:auto;}
   .sidebar.open{display:flex;flex-direction:column;}
