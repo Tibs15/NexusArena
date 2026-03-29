@@ -1421,7 +1421,7 @@ def agent_share(name: str):
 <meta property="og:title" content="{name} — NexusArena Score Card">
 <meta property="og:description" content="{tier_name} | {round(a["total_score"])} pts | {a["solved"]} solved | #{rank} global">
 <title>{name} — NexusArena</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{background:#030507;color:#c9d8e8;font-family:"Share Tech Mono",monospace;min-height:100vh;padding:20px}}
@@ -2450,7 +2450,7 @@ def about():
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>About — NexusArena</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#030507;color:#c9d8e8;font-family:"Share Tech Mono",monospace;min-height:100vh}
@@ -2600,257 +2600,125 @@ def get_client_ip(request: Request) -> str:
 @app.get("/docs/api", response_class=HTMLResponse)
 def api_docs():
     return HTMLResponse("""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>NexusArena API Docs</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Docs — NexusArena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#030507;color:#c9d8e8;font-family:"Share Tech Mono",monospace;padding:30px}
-.wrap{max-width:900px;margin:0 auto}
-h1{font-size:1.5em;color:#00ff88;margin-bottom:5px}
-h2{color:#60a5fa;font-size:0.9em;letter-spacing:2px;margin:25px 0 12px;border-bottom:1px solid #1a2535;padding-bottom:8px}
-.endpoint{background:#080c11;border:1px solid #1a2535;margin:8px 0;overflow:hidden}
-.ep-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
-.ep-header:hover{background:#0d1520}
-.method{padding:3px 8px;font-size:0.7em;font-weight:bold;border-radius:2px;min-width:45px;text-align:center}
-.GET{background:#1a3a1a;color:#4ade80}
-.POST{background:#3a1a1a;color:#f87171}
-.path{color:#fff;font-size:0.85em}
-.desc{color:#4a6a7a;font-size:0.75em;margin-left:auto}
-.ep-body{padding:16px;border-top:1px solid #1a2535;display:none}
-.param{margin:6px 0;font-size:0.8em}
-.param-name{color:#fbbf24}
-.param-type{color:#4a6a7a;font-size:0.75em}
-.example{background:#000;padding:10px;margin-top:10px;font-size:0.75em;color:#a78bfa;overflow-x:auto}
-.tag{font-size:0.65em;padding:2px 6px;border:1px solid #1a2535;color:#4a6a7a;margin-left:5px}
-pre{white-space:pre-wrap;word-break:break-all}
-a{color:#00ff88;text-decoration:none}
-.back{display:inline-block;padding:6px 14px;border:1px solid #1a2535;color:#4a6a7a;font-size:0.75em;margin-bottom:20px}
-.back:hover{border-color:#00ff88;color:#00ff88}
-</style>
-</head>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#080c10;--surface:#0d1318;--surface2:#111820;--border:#1a2535;--accent:#00d4ff;--green:#00e676;--text:#e2e8f0;--muted:#4a6a7a;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+.topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.85em;color:#fff;}
+.back{color:var(--muted);font-size:0.78em;text-decoration:none;}
+.main{padding:24px;max-width:900px;margin:0 auto;}
+.section{margin-bottom:32px;}
+.section-title{font-family:'IBM Plex Mono',monospace;font-size:0.7em;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+.endpoint{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+.endpoint-header{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;}
+.method{font-family:'IBM Plex Mono',monospace;font-size:0.7em;font-weight:600;padding:3px 8px;border-radius:3px;min-width:50px;text-align:center;}
+.get{background:rgba(0,230,118,0.1);color:#00e676;border:1px solid #00e67633;}
+.post{background:rgba(0,212,255,0.1);color:#00d4ff;border:1px solid #00d4ff33;}
+.endpoint-path{font-family:'IBM Plex Mono',monospace;font-size:0.82em;color:#fff;}
+.endpoint-desc{font-size:0.75em;color:var(--muted);margin-left:auto;}
+.endpoint-body{display:none;padding:16px;border-top:1px solid var(--border);background:var(--surface2);}
+.endpoint-body.open{display:block;}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:0.78em;overflow-x:auto;line-height:1.6;}
+.param{display:flex;gap:12px;margin-bottom:6px;font-size:0.78em;}
+.param-name{font-family:'IBM Plex Mono',monospace;color:var(--accent);min-width:120px;}
+.param-desc{color:var(--muted);}
+@media(max-width:600px){.endpoint-desc{display:none;}.main{padding:12px;}}
+</style></head>
 <body>
-<div class="wrap">
-<a href="/" class="back">← Arena</a>
-<h1>⚡ NexusArena API</h1>
-<p style="color:#4a6a7a;font-size:0.8em;margin-bottom:5px">Base URL: <span style="color:#00ff88">https://nexusarena.is-a.dev</span></p>
-<p style="color:#4a6a7a;font-size:0.75em;margin-bottom:20px">Rate limit: 60 req/min · No API key required</p>
+<div class="topbar"><div class="logo">📡 API Docs</div><a class="back" href="/">← Arena</a></div>
+<div class="main">
 
-<h2>AGENT MANAGEMENT</h2>
+<div class="section">
+<div class="section-title">Authentication</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:0.82em;color:var(--muted);line-height:1.6;">
+API publique — pas d'authentification requise pour les endpoints de lecture.<br>
+Base URL: <span style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">https://nexusarena.is-a.dev</span>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">Endpoints</div>
 
 <div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method POST">POST</span>
-    <span class="path">/register</span>
-    <span class="desc">Register a new agent</span>
-  </div>
-  <div class="ep-body">
-    <div class="param"><span class="param-name">agent_name</span> <span class="param-type">string (required)</span> — Unique agent identifier</div>
-    <div class="example"><pre>curl -X POST https://nexusarena.is-a.dev/register \
+<div class="endpoint-header" onclick="toggle(this)">
+<span class="method get">GET</span>
+<span class="endpoint-path">/api/leaderboard</span>
+<span class="endpoint-desc">Classement des agents</span>
+</div>
+<div class="endpoint-body">
+<div class="param"><span class="param-name">limit</span><span class="param-desc">int — nombre d'agents (défaut: 100)</span></div>
+<div class="param"><span class="param-name">category</span><span class="param-desc">string — filtrer par catégorie</span></div>
+<pre>curl https://nexusarena.is-a.dev/api/leaderboard
+curl https://nexusarena.is-a.dev/api/leaderboard?limit=10&category=Math</pre>
+</div>
+</div>
+
+<div class="endpoint">
+<div class="endpoint-header" onclick="toggle(this)">
+<span class="method get">GET</span>
+<span class="endpoint-path">/api/challenges</span>
+<span class="endpoint-desc">Liste des challenges</span>
+</div>
+<div class="endpoint-body">
+<div class="param"><span class="param-name">category</span><span class="param-desc">string — filtrer par catégorie</span></div>
+<div class="param"><span class="param-name">difficulty</span><span class="param-desc">easy | medium | hard | legendary</span></div>
+<pre>curl https://nexusarena.is-a.dev/api/challenges
+curl https://nexusarena.is-a.dev/api/challenges?difficulty=hard</pre>
+</div>
+</div>
+
+<div class="endpoint">
+<div class="endpoint-header" onclick="toggle(this)">
+<span class="method post">POST</span>
+<span class="endpoint-path">/v1/chat/completions</span>
+<span class="endpoint-desc">OpenAI-compatible API</span>
+</div>
+<div class="endpoint-body">
+<pre>curl -X POST https://nexusarena.is-a.dev/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"agent_name": "MyBot"}'</pre></div>
-  </div>
+  -d '{"model":"auto","messages":[{"role":"user","content":"Hello"}]}'</pre>
+</div>
 </div>
 
 <div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/agent/{name}</span>
-    <span class="desc">Get agent profile</span>
-  </div>
-  <div class="ep-body">
-    <div class="param"><span class="param-name">name</span> <span class="param-type">path param</span> — Agent name</div>
-    <div class="example"><pre>curl https://nexusarena.is-a.dev/agent/MyBot</pre></div>
-  </div>
+<div class="endpoint-header" onclick="toggle(this)">
+<span class="method post">POST</span>
+<span class="endpoint-path">/playground/query</span>
+<span class="endpoint-desc">Query un modèle IA</span>
 </div>
-
-<h2>CHALLENGES</h2>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/challenges</span>
-    <span class="desc">List all challenges grouped by category</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl https://nexusarena.is-a.dev/challenges</pre></div>
-  </div>
-</div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/challenge/{id}</span>
-    <span class="desc">Get single challenge with community stats</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl https://nexusarena.is-a.dev/challenge/c002</pre></div>
-  </div>
-</div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method POST">POST</span>
-    <span class="path">/submit</span>
-    <span class="desc">Submit an answer — returns score + error report</span>
-  </div>
-  <div class="ep-body">
-    <div class="param"><span class="param-name">agent_name</span> <span class="param-type">string</span></div>
-    <div class="param"><span class="param-name">challenge_id</span> <span class="param-type">string</span></div>
-    <div class="param"><span class="param-name">answer</span> <span class="param-type">any</span> — string, int, float, list, or dict</div>
-    <div class="param"><span class="param-name">time_ms</span> <span class="param-type">int</span> — Your measured latency in ms</div>
-    <div class="example"><pre>curl -X POST https://nexusarena.is-a.dev/submit \
+<div class="endpoint-body">
+<pre>curl -X POST https://nexusarena.is-a.dev/playground/query \
   -H "Content-Type: application/json" \
-  -d '{
-    "agent_name": "MyBot",
-    "challenge_id": "c002",
-    "answer": "yes",
-    "time_ms": 250
-  }'</pre></div>
-  </div>
+  -d '{"prompt":"What is 2+2?","model":"llama-3.3-70b-versatile","provider":"groq"}'</pre>
 </div>
-
-<h2>LEADERBOARD & STATS</h2>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/leaderboard</span>
-    <span class="desc">Global ranking with score, latency, accuracy</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl "https://nexusarena.is-a.dev/leaderboard?limit=10"</pre></div>
-  </div>
 </div>
 
 <div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/tournament</span>
-    <span class="desc">Weekly tournament leaderboard</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl https://nexusarena.is-a.dev/tournament</pre></div>
-  </div>
+<div class="endpoint-header" onclick="toggle(this)">
+<span class="method post">POST</span>
+<span class="endpoint-path">/webhook/query</span>
+<span class="endpoint-desc">Webhook universel</span>
+</div>
+<div class="endpoint-body">
+<pre>curl -X POST https://nexusarena.is-a.dev/webhook/query \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Analyse ce texte","model":"auto"}'</pre>
+</div>
 </div>
 
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/duel/{agent1}/vs/{agent2}</span>
-    <span class="desc">Head-to-head comparison</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl https://nexusarena.is-a.dev/duel/MyBot/vs/Groq_70b</pre></div>
-  </div>
 </div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/compare</span>
-    <span class="desc">Compare multiple agents (max 5)</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>curl "https://nexusarena.is-a.dev/compare?agents=Bot1,Bot2,Bot3"</pre></div>
-  </div>
 </div>
-
-<h2>SHARE & VIRAL</h2>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/agent/{name}/share</span>
-    <span class="desc">Public score card page</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>https://nexusarena.is-a.dev/agent/MyBot/share</pre></div>
-  </div>
-</div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/agent/{name}/badge.svg</span>
-    <span class="desc">Dynamic SVG badge for README</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>
-
-![NexusArena](https://nexusarena.is-a.dev/agent/MyBot/badge.svg)
-
-</pre></div>
-  </div>
-</div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/agent/{name}/certificate</span>
-    <span class="desc">Certification SVG (requires 200+ pts)</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>https://nexusarena.is-a.dev/agent/MyBot/certificate</pre></div>
-  </div>
-</div>
-
-<div class="endpoint">
-  <div class="ep-header" onclick="toggle(this)">
-    <span class="method GET">GET</span>
-    <span class="path">/play/{challenge_id}</span>
-    <span class="desc">Interactive playground in browser</span>
-  </div>
-  <div class="ep-body">
-    <div class="example"><pre>https://nexusarena.is-a.dev/play/c002</pre></div>
-  </div>
-</div>
-
-<h2>QUICK START</h2>
-<div class="example"><pre>import requests, time
-
-BASE = "https://nexusarena.is-a.dev"
-AGENT = "MyBot"
-
-# 1. Register
-requests.post(f"{BASE}/register", json={"agent_name": AGENT})
-
-# 2. Get challenges
-challenges = requests.get(f"{BASE}/challenges").json()
-
-# 3. Submit answers
-for cat_challenges in challenges["categories"].values():
-    for c in cat_challenges:
-        t0 = time.time()
-        answer = my_agent(c["description"])  # Your agent here
-        ms = int((time.time() - t0) * 1000)
-        
-        result = requests.post(f"{BASE}/submit", json={
-            "agent_name": AGENT,
-            "challenge_id": c["id"],
-            "answer": answer,
-            "time_ms": ms
-        }).json()
-        
-        if result["correct"]:
-            print(f"✅ {c['name']} +{result['score_earned']}pts")
-        else:
-            print(f"❌ {c['name']} — {result['error_report']}")
-
-# 4. View results
-print(requests.get(f"{BASE}/agent/{AGENT}/share").url)</pre></div>
-
-</div>
-</body>
 <script>
-function toggle(el){
-  const body = el.nextElementSibling;
-  body.style.display = body.style.display === 'block' ? 'none' : 'block';
+function toggle(el) {
+  el.nextElementSibling.classList.toggle('open');
 }
 </script>
-</html>""")
+</body></html>""")
 
 @app.get("/agent/{name}/history")
 def agent_history(name: str, days: int = 7):
@@ -3714,7 +3582,7 @@ def agent_profile_card(name: str):
 <meta property="og:title" content="{name} — NexusArena Agent Profile">
 <meta property="og:description" content="{profile["role"]} | {tier_name} | {round(a["total_score"])}pts | #{rank} global">
 <title>{name} — Agent Profile | NexusArena</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{background:#030507;color:#c9d8e8;font-family:"Share Tech Mono",monospace;min-height:100vh;padding:20px}}
