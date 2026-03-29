@@ -3805,6 +3805,8 @@ MODEL_COSTS = {
     "allam-2-7b": 0.05,
     "groq/compound": 0.59,
     "groq/compound-mini": 0.10,
+    "gemini-2.5-flash": 0.00,
+    "gemini-2.0-flash": 0.00,
     "openai/gpt-oss-120b": 1.20,
     "openai/gpt-oss-20b": 0.20,
 }
@@ -4212,6 +4214,10 @@ const MODELS = {
     {id:"qwen-3-235b-a22b-instruct-2507", name:"Qwen3 235B", badge:"235B", fast:true},
     {id:"llama3.1-8b", name:"Llama 8B", badge:"Fast", fast:true},
   ],
+  gemini: [
+    {id:"gemini-2.5-flash", name:"Gemini 2.5 Flash", badge:"Google", fast:true},
+    {id:"gemini-2.0-flash", name:"Gemini 2.0 Flash", badge:"Google"},
+  ],
   openrouter: [
     {id:"nvidia/nemotron-3-super-120b-a12b:free", name:"Nemotron 120B", badge:"Free"},
     {id:"google/gemma-3-12b-it:free", name:"Gemma 3 12B", badge:"Free"},
@@ -4513,6 +4519,19 @@ async def playground_query(request: Request):
         elif provider == "openrouter":
             key = os.getenv("OPENROUTER_API_KEY","")
             url = "https://openrouter.ai/api/v1/chat/completions"
+        elif provider == "gemini":
+            from dotenv import load_dotenv
+            load_dotenv("/data/data/com.termux/files/home/NexusLIFE/.env")
+            gemini_key = os.getenv("GEMINI_API_KEY","")
+            import httpx as _hx
+            async with _hx.AsyncClient(timeout=30) as _c:
+                _r = await _c.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
+                    json={"contents":[{"parts":[{"text":prompt}]}]})
+                if _r.status_code == 200:
+                    _text = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    return {"response":_text,"model":model,"provider":"gemini","tokens":len(_text.split()),"cost":0}
+                return {"error":f"Gemini {_r.status_code}","response":""}
         else:
             return {"error": "Unknown provider"}
         
@@ -7356,6 +7375,18 @@ async def gateway_completions(request: Request):
     elif provider == "cerebras":
         key = os.getenv("CEREBRAS_API_KEY","")
         url = "https://api.cerebras.ai/v1/chat/completions"
+    elif provider == "gemini":
+        key = os.getenv("GEMINI_API_KEY","")
+        # Gemini a une API différente
+        import httpx as _httpx
+        async with _httpx.AsyncClient(timeout=30) as _client:
+            _r = await _client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                json={"contents":[{"parts":[{"text":prompt}]}]})
+            if _r.status_code == 200:
+                _text = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                return {"response":_text,"model":model,"provider":"gemini","tokens":len(_text.split())}
+            return {"error":f"Gemini error {_r.status_code}","response":""}
     else:
         key = os.getenv("OPENROUTER_API_KEY","")
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -8122,6 +8153,18 @@ async def webhook_query(request: Request):
     elif provider == "cerebras":
         key = os.getenv("CEREBRAS_API_KEY","")
         url = "https://api.cerebras.ai/v1/chat/completions"
+    elif provider == "gemini":
+        key = os.getenv("GEMINI_API_KEY","")
+        # Gemini a une API différente
+        import httpx as _httpx
+        async with _httpx.AsyncClient(timeout=30) as _client:
+            _r = await _client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                json={"contents":[{"parts":[{"text":prompt}]}]})
+            if _r.status_code == 200:
+                _text = _r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                return {"response":_text,"model":model,"provider":"gemini","tokens":len(_text.split())}
+            return {"error":f"Gemini error {_r.status_code}","response":""}
     else:
         key = os.getenv("OPENROUTER_API_KEY","")
         url = "https://openrouter.ai/api/v1/chat/completions"
