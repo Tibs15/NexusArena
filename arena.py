@@ -8823,14 +8823,49 @@ function saveToHistory(firstMsg) {
   }
 }
 
-function loadHistory() {
-  // Reset active states
+async function loadHistory() {
+  const r = await fetch('/chat/history');
+  const data = await r.json();
+  const list = document.getElementById('history-list');
+  if (!data.sessions || data.sessions.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.75em;padding:10px;text-align:center">No conversations yet</div>';
+    return;
+  }
+  list.innerHTML = '';
+  data.sessions.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'history-item' + (s.id === sessionId ? ' active' : '');
+    item.id = 'hist-' + s.id;
+    item.innerHTML = `<div style="font-size:0.78em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title}</div>
+      <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${s.model.split('/').pop()} · ${s.updated_at.slice(0,16)}</div>`;
+    item.onclick = () => loadSession(s.id);
+    list.appendChild(item);
+  });
+}
+
+async function loadSession(id) {
+  const r = await fetch('/chat/session/' + id);
+  const data = await r.json();
+  sessionId = id;
+  messages = [];
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('messages').style.display = 'flex';
+  data.messages.forEach(m => {
+    messages.push({role: m.role, content: m.content});
+    addMessage(m.role, m.content, m.model);
+  });
   document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
+  const item = document.getElementById('hist-' + id);
+  if(item) item.classList.add('active');
 }
 
 document.getElementById('temperature').addEventListener('input', function() {
   document.getElementById('temp-val').textContent = (this.value/100).toFixed(1);
 });
+
+// Charger l'historique au démarrage
+loadHistory();
 </script>
 </body>
 </html>"""
